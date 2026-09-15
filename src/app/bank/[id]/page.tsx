@@ -40,7 +40,7 @@ export default async function SignalDetailPage({
         <p className="text-sm font-medium text-text-primary/55">{signal.signalType}</p>
       </div>
 
-      <div className="relative h-36 overflow-hidden rounded-2xl border border-border-subtle bg-[radial-gradient(circle_at_45%_40%,rgba(140,27,46,0.18),transparent_60%)] bg-[#14151A]">
+      <div className="relative h-36 overflow-hidden rounded-2xl border border-border-subtle bg-map-surface bg-[radial-gradient(circle_at_45%_40%,rgba(140,27,46,0.18),transparent_60%)]">
         <div
           className="absolute inset-0 opacity-20"
           style={{

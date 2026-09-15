@@ -11,6 +11,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // The browser-chrome theme-color meta tag is read before any CSS loads,
+  // so it can't reference a custom property — literal brand crimson (--brand).
   themeColor: "#8c1b2e",
 };
 

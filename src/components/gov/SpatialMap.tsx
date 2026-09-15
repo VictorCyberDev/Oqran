@@ -89,9 +89,7 @@ export function SpatialMap({
       el.style.width = "16px";
       el.style.height = "16px";
       el.style.borderRadius = "50%";
-      // Fixed dark ring, not the theme token: the tile layer is always
-      // rendered dark via the CSS filter above regardless of app theme.
-      el.style.border = "2px solid #14151A";
+      el.style.border = "2px solid var(--color-map-surface)";
       el.style.background = RISK_SEVERITY_HEX[incident.severity];
       el.style.boxShadow = `0 0 0 5px color-mix(in srgb, ${RISK_SEVERITY_HEX[incident.severity]} 25%, transparent)`;
       el.style.cursor = "pointer";

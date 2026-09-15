@@ -34,6 +34,13 @@
   --border-divider: rgba(28, 27, 26, 0.07);
   --danger: #d6293d;
 
+  /* Fixed-dark map chrome — map tiles/overlays render dark regardless of
+     the app's own light/dark setting (a map-style choice, not a theme
+     one), so these never change under the dark-mode overrides below. */
+  --map-surface: #14151a;
+  --map-panel: #1d1f26;
+  --map-text: #ededee;
+
   /* Elevation — light surfaces separate with shadow */
   --shadow-color: 20 15 15;
   --shadow-sm: 0 1px 3px rgb(var(--shadow-color) / 0.08), 0 1px 2px rgb(var(--shadow-color) / 0.05);
@@ -114,6 +121,9 @@
   --color-border-default: var(--border-default);
   --color-border-divider: var(--border-divider);
   --color-danger: var(--danger);
+  --color-map-surface: var(--map-surface);
+  --color-map-panel: var(--map-panel);
+  --color-map-text: var(--map-text);
 
   /* Type scale (paired line-heights) — snapped from the confirmed design */
   --text-2xs: 0.6875rem;       /* 11px */

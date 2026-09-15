@@ -9,7 +9,7 @@ export function MapOverlayPanel({
   return (
     <div
       className={cn(
-        "rounded-md border border-white/10 bg-[#1D1F26]/92 px-3 py-2.5 text-[#EDEDEE] backdrop-blur-sm",
+        "rounded-md border border-white/10 bg-map-panel/92 px-3 py-2.5 text-map-text backdrop-blur-sm",
         className
       )}
       {...props}
