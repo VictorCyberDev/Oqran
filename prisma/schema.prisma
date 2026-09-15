@@ -304,6 +304,18 @@ model ApiUsage {
   @@map("api_usage")
 }
 
+/// Fixed-window counter backing server-side rate limiting (OTP issuance,
+/// incident submission, and every auth-adjacent route). Not user data.
+model RateLimitBucket {
+  id          String   @id @default(cuid())
+  key         String
+  windowStart DateTime
+  count       Int      @default(1)
+
+  @@unique([key, windowStart])
+  @@map("rate_limit_buckets")
+}
+
 enum ApprovalStatus {
   PENDING
   APPROVED
