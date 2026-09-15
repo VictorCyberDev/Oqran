@@ -3,12 +3,12 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { RateLimitError } from "@/lib/rate-limit";
 
-export function withErrorHandling(
-  handler: (req: Request) => Promise<NextResponse>
+export function withErrorHandling<Args extends unknown[]>(
+  handler: (req: Request, ...args: Args) => Promise<NextResponse>
 ) {
-  return async (req: Request) => {
+  return async (req: Request, ...args: Args) => {
     try {
-      return await handler(req);
+      return await handler(req, ...args);
     } catch (err) {
       if (err instanceof RateLimitError) {
         return NextResponse.json({ ok: false, error: err.message }, { status: 429 });

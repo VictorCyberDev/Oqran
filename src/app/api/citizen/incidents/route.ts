@@ -6,6 +6,7 @@ import { enforceRateLimit } from "@/lib/rate-limit";
 import { appendLedgerEntry } from "@/lib/ledger";
 import { logActivity } from "@/lib/activity";
 import { haversineDistanceKm } from "@/lib/geo/risk-score";
+import { minutesFromNow } from "@/lib/dates";
 import { clientIp, userAgent, jsonError } from "@/lib/http";
 import { withErrorHandling } from "@/lib/api-handler";
 import type { RiskSeverity } from "@/generated/prisma/enums";
@@ -86,6 +87,23 @@ export const POST = withErrorHandling(async (req) => {
     reporterId: session.userId,
     severity: incident.severity,
   });
+
+  if (body.category === "fraud" && addressId) {
+    const address = await db.address.findUnique({ where: { id: addressId } });
+    if (address) {
+      await db.fraudSignal.create({
+        data: {
+          addressId: address.id,
+          entityLabel: address.label,
+          signalType: "Citizen-Reported Fraud",
+          severity: incident.severity,
+          source: "INTERNAL_REPORT",
+          flaggedById: session.userId,
+          slaDeadline: minutesFromNow(30),
+        },
+      });
+    }
+  }
 
   await logActivity({
     userId: session.userId,

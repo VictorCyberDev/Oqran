@@ -100,6 +100,52 @@ async function main() {
     update: {},
   });
 
+  await db.fraudSignal.upsert({
+    where: { id: "seed-fraud-breached" },
+    create: {
+      id: "seed-fraud-breached",
+      addressId: bourdillon.id,
+      entityLabel: bourdillon.label,
+      signalType: "Velocity Alert · 5 txns/hr",
+      severity: "CRITICAL",
+      source: "PUBLIC_WATCHLIST",
+      watchlistRef: "CBN-NIBSS-WL-88213",
+      flaggedAt: daysAgo(0),
+      slaDeadline: new Date(now - 5 * 60 * 1000),
+    },
+    update: {},
+  });
+
+  await db.fraudSignal.upsert({
+    where: { id: "seed-fraud-soon" },
+    create: {
+      id: "seed-fraud-soon",
+      addressId: awolowo.id,
+      entityLabel: awolowo.label,
+      signalType: "Address Mismatch",
+      severity: "GUARDED",
+      source: "INTERNAL_REPORT",
+      flaggedAt: daysAgo(0),
+      slaDeadline: new Date(now + 8 * 60 * 1000),
+    },
+    update: {},
+  });
+
+  await db.fraudSignal.upsert({
+    where: { id: "seed-fraud-fresh" },
+    create: {
+      id: "seed-fraud-fresh",
+      entityLabel: "9 Ademola Adetokunbo Cres, Wuse 2, Abuja",
+      signalType: "PoS Geofence Mismatch",
+      severity: "ELEVATED",
+      source: "PUBLIC_WATCHLIST",
+      watchlistRef: "CBN-NIBSS-WL-77410",
+      flaggedAt: daysAgo(0),
+      slaDeadline: new Date(now + 28 * 60 * 1000),
+    },
+    update: {},
+  });
+
   await db.organization.upsert({
     where: { inviteCode: "OQ-GOV-DEMO" },
     create: {
