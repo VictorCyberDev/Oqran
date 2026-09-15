@@ -6,15 +6,20 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@prisma/adapter-mariadb": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "bcrypt": "^6.0.0",
     "framer-motion": "^13.3.0",
     "jose": "^6.2.12",
     "maplibre-gl": "^6.9.1",
-    "mysql2": "^3.24.4",
+    "mariadb": "^3.5.4",
     "next": "16.3.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -26,6 +31,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "prisma": "^7.10.0",
@@ -34,6 +40,7 @@
   },
   "overrides": {
     "deepmerge-ts": "^8.0.2",
+    "mariadb": "^3.5.4",
     "prisma": {
       "mysql2": "^3.24.4"
     }

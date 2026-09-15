@@ -1,0 +1,332 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  // Prisma 7 no longer reads the connection URL from the schema: the CLI
+  // (migrate/db push) gets it from prisma7.config.ts, and the runtime
+  // client gets it via a driver adapter (see src/lib/db.ts).
+  // TiDB Cloud Starter is MySQL wire-compatible but Prisma-enforced relations
+  // avoid edge cases with FK constraint behavior on the serverless tier.
+  relationMode = "prisma"
+}
+
+// ---------------------------------------------------------------------------
+// Identity & access
+// ---------------------------------------------------------------------------
+
+enum Role {
+  CITIZEN
+  BUSINESS
+  BANK
+  GOVERNMENT
+  DEVELOPER
+  ADMIN
+}
+
+enum AuthMethod {
+  SMS
+  EMAIL
+}
+
+enum UserStatus {
+  ACTIVE
+  PENDING_APPROVAL
+  SUSPENDED
+}
+
+model User {
+  id                String     @id @default(cuid())
+  role              Role
+  phone             String?    @unique
+  email             String?    @unique
+  authMethod        AuthMethod @default(SMS)
+  nin               String?    @unique
+  status            UserStatus @default(ACTIVE)
+  displayName       String?
+  organizationId    String?
+  organization      Organization? @relation(fields: [organizationId], references: [id])
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  otpCodes           OtpCode[]
+  trustedDevices     TrustedDevice[]
+  verifiedAddresses  Address[]        @relation("VerifiedAddresses")
+  reportedIncidents  Incident[]       @relation("ReportedIncidents")
+  activityLogs       ActivityLog[]
+  apiClients         ApiClient[]
+  pendingApproval    PendingApproval?
+  flaggedSignals     FraudSignal[]    @relation("FlaggedBy")
+  resolvedSignals    FraudSignal[]    @relation("ResolvedBy")
+  reviewedApprovals  PendingApproval[] @relation("ReviewedBy")
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+enum OrganizationType {
+  BANK
+  GOVERNMENT
+}
+
+enum OrganizationVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+model Organization {
+  id                 String   @id @default(cuid())
+  name               String
+  type               OrganizationType
+  inviteCode         String   @unique
+  verificationStatus OrganizationVerificationStatus @default(PENDING)
+  registrationRef    String?  // BVN (bank) or NIN/service ID (government officer)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  users            User[]
+  pendingApprovals PendingApproval[]
+
+  @@map("organizations")
+}
+
+enum OtpTarget {
+  PHONE
+  EMAIL
+}
+
+enum OtpPurpose {
+  SIGN_IN
+  CREATE_ACCOUNT
+  ORG_VERIFY
+}
+
+model OtpCode {
+  id           String     @id @default(cuid())
+  userId       String?
+  user         User?      @relation(fields: [userId], references: [id])
+  target       String
+  targetType   OtpTarget
+  purpose      OtpPurpose
+  codeHash     String
+  expiresAt    DateTime
+  attemptCount Int        @default(0)
+  maxAttempts  Int        @default(5)
+  consumedAt   DateTime?
+  createdAt    DateTime   @default(now())
+
+  @@index([target, purpose])
+  @@index([userId])
+  @@map("otp_codes")
+}
+
+model TrustedDevice {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  deviceTokenHash String    @unique
+  label           String
+  userAgent       String?
+  approxLocation  String?
+  lastUsedAt      DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  revokedAt       DateTime?
+
+  @@index([userId])
+  @@map("trusted_devices")
+}
+
+// ---------------------------------------------------------------------------
+// Spatial risk data
+// ---------------------------------------------------------------------------
+
+enum AddressConfidenceTier {
+  NIMC_CERTIFIED
+  STATE_GIS
+  CROWD_REPORTED
+}
+
+enum RiskSeverity {
+  LOW
+  GUARDED
+  ELEVATED
+  CRITICAL
+}
+
+model Address {
+  id             String                 @id @default(cuid())
+  label          String
+  latitude       Float
+  longitude      Float
+  confidenceTier AddressConfidenceTier
+  source         String
+  postcode       String?
+  zoneType       String?
+  severity       RiskSeverity           @default(LOW)
+  verifiedById   String?
+  verifiedBy     User?                  @relation("VerifiedAddresses", fields: [verifiedById], references: [id])
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  incidents    Incident[]
+  fraudSignals FraudSignal[]
+
+  @@index([latitude, longitude])
+  @@index([verifiedById])
+  @@map("addresses")
+}
+
+enum IncidentStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+model Incident {
+  id            String         @id @default(cuid())
+  type          String
+  severity      RiskSeverity
+  description   String?
+  addressId     String?
+  address       Address?       @relation(fields: [addressId], references: [id])
+  latitude      Float?
+  longitude     Float?
+  reporterId    String?
+  reporter      User?          @relation("ReportedIncidents", fields: [reporterId], references: [id])
+  status        IncidentStatus @default(SUBMITTED)
+  referenceCode String         @unique
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([addressId])
+  @@index([reporterId])
+  @@map("incidents")
+}
+
+/// SHA-256 hash-chain audit trail. Rows are append-only; integrity is
+/// verified by recomputing hash(payload + prevHash) per row (see
+/// src/lib/ledger.ts) rather than enforced by the database.
+model RiskLedgerEntry {
+  id          String   @id @default(cuid())
+  sequence    Int      @unique @default(autoincrement())
+  payload     Json
+  prevHash    String
+  currentHash String   @unique
+  createdAt   DateTime @default(now())
+
+  @@map("risk_ledger")
+}
+
+enum FraudSignalSource {
+  INTERNAL_REPORT
+  PUBLIC_WATCHLIST
+}
+
+model FraudSignal {
+  id           String            @id @default(cuid())
+  addressId    String?
+  address      Address?          @relation(fields: [addressId], references: [id])
+  entityLabel  String
+  signalType   String
+  severity     RiskSeverity
+  source       FraudSignalSource
+  watchlistRef String?
+  flaggedById  String?
+  flaggedBy    User?             @relation("FlaggedBy", fields: [flaggedById], references: [id])
+  flaggedAt    DateTime          @default(now())
+  slaDeadline  DateTime
+  resolvedAt   DateTime?
+  resolvedById String?
+  resolvedBy   User?             @relation("ResolvedBy", fields: [resolvedById], references: [id])
+
+  @@index([addressId])
+  @@index([slaDeadline])
+  @@index([flaggedById])
+  @@index([resolvedById])
+  @@map("fraud_signals")
+}
+
+// ---------------------------------------------------------------------------
+// Activity, developer platform & governance
+// ---------------------------------------------------------------------------
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  action      String
+  description String?
+  device      String?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("activity_log")
+}
+
+enum ApiClientStatus {
+  ACTIVE
+  REVOKED
+}
+
+model ApiClient {
+  id           String          @id @default(cuid())
+  userId       String
+  user         User            @relation(fields: [userId], references: [id])
+  name         String
+  apiKeyHash   String          @unique
+  apiKeyPrefix String
+  scopes       String
+  status       ApiClientStatus @default(ACTIVE)
+  createdAt    DateTime        @default(now())
+  revokedAt    DateTime?
+
+  usage ApiUsage[]
+
+  @@index([userId])
+  @@map("api_clients")
+}
+
+model ApiUsage {
+  id            String    @id @default(cuid())
+  apiClientId   String
+  apiClient     ApiClient @relation(fields: [apiClientId], references: [id])
+  endpoint      String
+  statusCode    Int
+  billableUnits Int       @default(1)
+  requestedAt   DateTime  @default(now())
+
+  @@index([apiClientId, requestedAt])
+  @@map("api_usage")
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model PendingApproval {
+  id             String         @id @default(cuid())
+  userId         String         @unique
+  user           User           @relation(fields: [userId], references: [id])
+  organizationId String?
+  organization   Organization?  @relation(fields: [organizationId], references: [id])
+  requestedRole  Role
+  referenceCode  String         @unique
+  status         ApprovalStatus @default(PENDING)
+  reviewedById   String?
+  reviewedBy     User?          @relation("ReviewedBy", fields: [reviewedById], references: [id])
+  reviewNote     String?
+  createdAt      DateTime       @default(now())
+  reviewedAt     DateTime?
+
+  @@index([organizationId])
+  @@index([reviewedById])
+  @@index([status])
+  @@map("pending_approvals")
+}
