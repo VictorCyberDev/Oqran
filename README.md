@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OQRAN
 
-## Getting Started
+Nigeria's spatial risk-intelligence platform. Next.js (App Router) + TypeScript,
+Tailwind v4, Framer Motion, Prisma against TiDB Cloud, and a custom
+JWT/OTP/device-trust auth system (no third-party auth provider).
 
-First, run the development server:
+## Setup
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+1. `npm install`
+2. Copy `.env.example` to `.env` and fill in:
+   - `DATABASE_URL` — a TiDB Cloud Starter connection string
+   - `AUTH_JWT_SECRET` — `openssl rand -base64 48`
+   - `RESEND_API_KEY` / `EMAIL_FROM` — for real OTP email delivery (optional in dev — without it, OTP codes print to the server console)
+   - `SMS_PROVIDER_URL` / `SMS_PROVIDER_API_KEY` — no vendor is wired yet; pick one (Termii, Africa's Talking, etc.) and adapt `src/lib/notify/sms.ts`
+3. `npm run db:push` (or `db:migrate` once you're managing real migrations) to create the schema on TiDB
+4. `npm run db:seed` for demo addresses, incidents, fraud signals, and org invite codes
+5. `npm run dev`
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Scripts
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `npm run dev` / `build` / `start`
+- `npm run lint`
+- `npm test` — Vitest, currently covers the ledger hash-chain and Haversine risk-scoring utilities
+- `npm run db:push` / `db:migrate` / `db:studio` / `db:seed`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Structure
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `src/app` — routes, grouped by role (`citizen/`, `bank/`, `gov/`, `business/`,
+  `developer/`, `admin/`, shared `account/`) plus `api/` route handlers
+- `src/lib` — auth (session/OTP/device-trust), the ledger hash-chain,
+  rate limiting, geo/risk scoring, notification providers
+- `src/components/ui` — the token-driven component kit (Button, Card, Badge,
+  Input, SegmentedControl, Modal, Sheet, Table, MapOverlayPanel)
+- `prisma/schema.prisma` — data model; `prisma/seed.ts` — demo data
