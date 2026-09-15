@@ -1,5 +1,14 @@
 import type { Role } from "@/generated/prisma/enums";
 
+export const ROLE_LABEL: Record<Role, string> = {
+  CITIZEN: "Citizen",
+  BUSINESS: "Business",
+  BANK: "Bank Compliance",
+  GOVERNMENT: "Government Investigator",
+  DEVELOPER: "Developer",
+  ADMIN: "Admin",
+};
+
 export function roleHomePath(role: Role): string {
   switch (role) {
     case "CITIZEN":
