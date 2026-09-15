@@ -13,17 +13,23 @@ function bcryptRounds() {
 
 export async function issueDeviceTrustToken(params: {
   userId: string;
+  pin: string;
   label: string;
   userAgent?: string;
   approxLocation?: string;
 }): Promise<void> {
   const token = randomBytes(32).toString("hex");
-  const deviceTokenHash = await bcrypt.hash(token, bcryptRounds());
+  const rounds = bcryptRounds();
+  const [deviceTokenHash, pinHash] = await Promise.all([
+    bcrypt.hash(token, rounds),
+    bcrypt.hash(params.pin, rounds),
+  ]);
 
   await db.trustedDevice.create({
     data: {
       userId: params.userId,
       deviceTokenHash,
+      pinHash,
       label: params.label,
       userAgent: params.userAgent,
       approxLocation: params.approxLocation,
@@ -38,6 +44,16 @@ export async function issueDeviceTrustToken(params: {
     path: "/",
     maxAge: DEVICE_TTL_SECONDS,
   });
+}
+
+/** Verifies the local unlock PIN for a trusted device (the second factor
+ * that lets a recognized device skip OTP without skipping local proof of
+ * presence — a platform biometric prompt can gate PIN entry client-side,
+ * but the server only ever sees the PIN). */
+export async function verifyDevicePin(deviceId: string, pin: string): Promise<boolean> {
+  const device = await db.trustedDevice.findUnique({ where: { id: deviceId } });
+  if (!device || device.revokedAt) return false;
+  return bcrypt.compare(pin, device.pinHash);
 }
 
 /** Returns the trusted-device row for the current browser + user, if any and not revoked. */
