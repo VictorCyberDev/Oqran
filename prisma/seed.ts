@@ -157,6 +157,18 @@ async function main() {
     update: {},
   });
 
+  await db.user.upsert({
+    where: { email: "admin@oqran.ng" },
+    create: {
+      role: "ADMIN",
+      email: "admin@oqran.ng",
+      authMethod: "EMAIL",
+      status: "ACTIVE",
+      displayName: "Platform Admin",
+    },
+    update: {},
+  });
+
   console.log("Seed complete.");
 }
 

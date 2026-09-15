@@ -30,6 +30,12 @@ export const POST = withErrorHandling(async (req) => {
   if (!user) {
     return NextResponse.json({ ok: false, error: "Account no longer exists." });
   }
+  if (user.status !== "ACTIVE") {
+    return NextResponse.json({
+      ok: false,
+      error: "Your account is pending approval and cannot sign in yet.",
+    });
+  }
 
   await touchDeviceTrust(device.id);
 

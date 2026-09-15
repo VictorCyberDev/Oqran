@@ -20,6 +20,12 @@ export const POST = withErrorHandling(async (req) => {
   if (!user) {
     return NextResponse.json({ ok: false, error: "No account found for that credential." });
   }
+  if (user.status !== "ACTIVE") {
+    return NextResponse.json({
+      ok: false,
+      error: "Your account is pending approval. We'll notify you once it's reviewed.",
+    });
+  }
 
   const trustedDevice = await getTrustedDeviceForUser(user.id);
   if (trustedDevice) {
