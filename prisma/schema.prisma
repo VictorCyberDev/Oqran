@@ -61,6 +61,7 @@ model User {
   flaggedSignals     FraudSignal[]    @relation("FlaggedBy")
   resolvedSignals    FraudSignal[]    @relation("ResolvedBy")
   reviewedApprovals  PendingApproval[] @relation("ReviewedBy")
+  zones              Zone[]
 
   @@index([organizationId])
   @@map("users")
@@ -303,6 +304,24 @@ model ApiUsage {
 
   @@index([apiClientId, requestedAt])
   @@map("api_usage")
+}
+
+/// A business-watched area (delivery zone, logistics corridor, industrial
+/// district). Not in the original screen set — added because the "My
+/// Zones" list has nothing to list without it.
+model Zone {
+  id         String   @id @default(cuid())
+  businessId String
+  business   User     @relation(fields: [businessId], references: [id])
+  name       String
+  type       String
+  latitude   Float
+  longitude  Float
+  radiusKm   Float    @default(2)
+  createdAt  DateTime @default(now())
+
+  @@index([businessId])
+  @@map("zones")
 }
 
 /// Fixed-window counter backing server-side rate limiting (OTP issuance,
