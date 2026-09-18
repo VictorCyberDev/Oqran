@@ -12,8 +12,9 @@ only verification channel — phone numbers are collected but never used for OTP
    - `DATABASE_URL` — a TiDB Cloud Starter connection string
    - `AUTH_JWT_SECRET` — `openssl rand -base64 48`
    - `RESEND_API_KEY` / `EMAIL_FROM` — for real OTP email delivery (optional in dev — without it, OTP codes print to the server console)
+   - `PLATFORM_OWNER_EMAIL` — the single account the seed script grants the `PLATFORM_OWNER` role to; that role is never obtainable any other way
 3. `npm run db:push` (or `db:migrate` once you're managing real migrations) to create the schema on TiDB
-4. `npm run db:seed` for demo addresses, incidents, fraud signals, org invite codes, and seeded demo accounts (refuses to run with `NODE_ENV=production`)
+4. `npm run db:seed` (or `npm run seed`) for demo addresses, incidents, fraud signals, org invite codes, seeded demo accounts, and the platform-owner account (refuses to run with `NODE_ENV=production`) — prints the demo emails, the fixed demo OTP code, and both invite codes to the console when it finishes
 5. `npm run dev`
 
 ## Scripts

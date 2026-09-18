@@ -41,6 +41,16 @@
   --map-panel: #1d1f26;
   --map-text: #ededee;
 
+  /* Chart categorical series (role breakdown, owner dashboard) — fixed
+     assignment order, validated for CVD-safe adjacent contrast against
+     both surfaces via the dataviz skill's validator. Never cycle or
+     reassign per-filter; a role always gets the same slot. */
+  --chart-series-1: #2a78d6;
+  --chart-series-2: #eb6834;
+  --chart-series-3: #1baf7a;
+  --chart-series-4: #eda100;
+  --chart-series-5: #e87ba4;
+
   /* Elevation — light surfaces separate with shadow */
   --shadow-color: 20 15 15;
   --shadow-sm: 0 1px 3px rgb(var(--shadow-color) / 0.08), 0 1px 2px rgb(var(--shadow-color) / 0.05);
@@ -71,6 +81,12 @@
     --shadow-md: 0 0 0 1px rgb(255 255 255 / 0.08);
     --shadow-lg: 0 0 0 1px rgb(255 255 255 / 0.10);
     --shadow-xl: 0 0 0 1px rgb(255 255 255 / 0.12);
+
+    --chart-series-1: #3987e5;
+    --chart-series-2: #d95926;
+    --chart-series-3: #199e70;
+    --chart-series-4: #c98500;
+    --chart-series-5: #d55181;
   }
 }
 
@@ -95,6 +111,12 @@
   --shadow-md: 0 0 0 1px rgb(255 255 255 / 0.08);
   --shadow-lg: 0 0 0 1px rgb(255 255 255 / 0.10);
   --shadow-xl: 0 0 0 1px rgb(255 255 255 / 0.12);
+
+  --chart-series-1: #3987e5;
+  --chart-series-2: #d95926;
+  --chart-series-3: #199e70;
+  --chart-series-4: #c98500;
+  --chart-series-5: #d55181;
 }
 
 @theme inline {
@@ -124,6 +146,11 @@
   --color-map-surface: var(--map-surface);
   --color-map-panel: var(--map-panel);
   --color-map-text: var(--map-text);
+  --color-chart-series-1: var(--chart-series-1);
+  --color-chart-series-2: var(--chart-series-2);
+  --color-chart-series-3: var(--chart-series-3);
+  --color-chart-series-4: var(--chart-series-4);
+  --color-chart-series-5: var(--chart-series-5);
 
   /* Type scale (paired line-heights) — snapped from the confirmed design */
   --text-2xs: 0.6875rem;       /* 11px */

@@ -252,6 +252,46 @@ async function main() {
     update: {},
   });
 
+  // The platform-owner account — PLATFORM_OWNER is never grantable through
+  // signup, invite, or admin approval, only set directly here.
+  const ownerEmail = process.env.PLATFORM_OWNER_EMAIL ?? "owner@oqran.ng";
+  await db.user.upsert({
+    where: { email: ownerEmail },
+    create: {
+      role: "PLATFORM_OWNER",
+      email: ownerEmail,
+      authMethod: "EMAIL",
+      status: "ACTIVE",
+      displayName: "Platform Owner",
+    },
+    update: { role: "PLATFORM_OWNER", status: "ACTIVE" },
+  });
+
+  // Placeholder subscriptions — no payment provider is wired yet.
+  await db.subscription.upsert({
+    where: { organizationId: bankOrg.id },
+    create: {
+      organizationId: bankOrg.id,
+      planTier: "STANDARD",
+      status: "ACTIVE",
+      amount: 150000,
+      billingCycle: "MONTHLY",
+    },
+    update: {},
+  });
+
+  await db.subscription.upsert({
+    where: { organizationId: govOrg.id },
+    create: {
+      organizationId: govOrg.id,
+      planTier: "ENTERPRISE",
+      status: "TRIAL",
+      amount: 0,
+      billingCycle: "ANNUAL",
+    },
+    update: {},
+  });
+
   // Sample zones so the business demo dashboard isn't empty.
   await db.zone.upsert({
     where: { id: "seed-zone-lekki" },
@@ -332,6 +372,7 @@ async function main() {
   console.log("\nFresh invite codes (real approval flow — use a different, non-demo email):");
   console.log(`  Bank invite code:       ${bankInviteCode}`);
   console.log(`  Government invite code: ${govInviteCode}`);
+  console.log(`\nPlatform owner account: ${ownerEmail} (real email — needs a real OTP, or the dev console-log fallback)`);
   console.log("");
 }
 
