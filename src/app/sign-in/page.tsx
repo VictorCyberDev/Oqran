@@ -4,14 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AuthShell, AuthHeading, FormError } from "../(auth)/AuthShell";
-import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
-type TargetType = "PHONE" | "EMAIL";
 type Step =
   | { name: "credential" }
-  | { name: "otp"; target: string; targetType: TargetType }
+  | { name: "otp"; email: string }
   | { name: "unlock"; deviceId: string }
   | { name: "trust-device"; role: string };
 
@@ -27,8 +25,7 @@ async function postJson(url: string, body: unknown) {
 export default function SignInPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>({ name: "credential" });
-  const [targetType, setTargetType] = useState<TargetType>("PHONE");
-  const [target, setTarget] = useState("");
+  const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +33,7 @@ export default function SignInPage() {
 
   function goHome(role: string) {
     const path =
-      { CITIZEN: "/citizen", BUSINESS: "/business", BANK: "/bank", GOVERNMENT: "/gov", DEVELOPER: "/developer", ADMIN: "/admin" }[
+      { CITIZEN: "/citizen", BUSINESS: "/business", BANK: "/bank", GOVERNMENT: "/gov", DEVELOPER: "/developer", ADMIN: "/admin", PLATFORM_OWNER: "/owner" }[
         role
       ] ?? "/";
     router.push(path);
@@ -45,22 +42,18 @@ export default function SignInPage() {
   async function submitCredential() {
     setBusy(true);
     setError(null);
-    const res = await postJson("/api/auth/sign-in/continue", { target, targetType });
+    const res = await postJson("/api/auth/sign-in/continue", { email });
     setBusy(false);
     if (!res.ok) return setError(res.error ?? "Something went wrong.");
     if (res.mode === "unlock") setStep({ name: "unlock", deviceId: res.deviceId });
-    else setStep({ name: "otp", target, targetType });
+    else setStep({ name: "otp", email });
   }
 
   async function submitOtp() {
     if (step.name !== "otp") return;
     setBusy(true);
     setError(null);
-    const res = await postJson("/api/auth/sign-in/verify-otp", {
-      target: step.target,
-      targetType: step.targetType,
-      code,
-    });
+    const res = await postJson("/api/auth/sign-in/verify-otp", { email: step.email, code });
     setBusy(false);
     if (!res.ok) return setError(res.error ?? "Something went wrong.");
     setStep({ name: "trust-device", role: res.role });
@@ -94,29 +87,16 @@ export default function SignInPage() {
           <AuthHeading title="OQRAN" subtitle="Sign in to continue" />
           <FormError message={error} />
           <div className="flex flex-col gap-4">
-            <SegmentedControl
-              options={[
-                { value: "PHONE", label: "SMS" },
-                { value: "EMAIL", label: "Email" },
-              ]}
-              value={targetType}
-              onChange={(v) => {
-                setTargetType(v);
-                setTarget("");
-              }}
-            />
             <div className="flex flex-col gap-2.5">
-              <label className="text-xs font-semibold text-text-primary">
-                {targetType === "PHONE" ? "Phone number" : "Email address"}
-              </label>
+              <label className="text-xs font-semibold text-text-primary">Email address</label>
               <Input
-                value={target}
-                onChange={(e) => setTarget(e.target.value)}
-                placeholder={targetType === "PHONE" ? "0803 000 0000" : "you@email.com"}
-                type={targetType === "PHONE" ? "tel" : "email"}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@email.com"
+                type="email"
               />
             </div>
-            <Button fullWidth disabled={busy || !target} onClick={submitCredential}>
+            <Button fullWidth disabled={busy || !email} onClick={submitCredential}>
               Continue
             </Button>
             <p className="text-center text-xs font-medium text-text-primary/45">
@@ -128,7 +108,7 @@ export default function SignInPage() {
 
       {step.name === "otp" && (
         <>
-          <AuthHeading title="Enter verification code" subtitle={`Code sent to ${step.target}`} />
+          <AuthHeading title="Enter verification code" subtitle={`Code sent to ${step.email}`} />
           <FormError message={error} />
           <div className="flex flex-col gap-4">
             <Input

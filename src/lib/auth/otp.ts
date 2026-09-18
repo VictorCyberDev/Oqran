@@ -3,9 +3,8 @@ import bcrypt from "bcrypt";
 import { randomInt } from "crypto";
 import { db } from "@/lib/db";
 import { enforceRateLimit } from "@/lib/rate-limit";
-import type { OtpPurpose, OtpTarget } from "@/generated/prisma/enums";
+import type { OtpPurpose } from "@/generated/prisma/enums";
 import { sendOtpEmail } from "@/lib/notify/email";
-import { sendOtpSms } from "@/lib/notify/sms";
 
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const OTP_LENGTH = 6;
@@ -13,6 +12,12 @@ const MAX_ATTEMPTS = 5;
 const MAX_ISSUE_PER_WINDOW = 3;
 const ISSUE_WINDOW_MS = 10 * 60 * 1000; // 3 sends per 10 minutes per target
 const RESEND_COOLDOWN_MS = 45 * 1000;
+
+/** Fixed code accepted only for accounts seeded with isDemo: true — never
+ * settable or reachable through any public path. Not surfaced anywhere in
+ * the sign-in UI; a demo account behaves identically to a real one except
+ * that this code always verifies and no email is actually sent. */
+const DEMO_OTP_CODE = "000000";
 
 function bcryptRounds() {
   return Number(process.env.AUTH_BCRYPT_ROUNDS ?? "12");
@@ -27,27 +32,26 @@ export class OtpError extends Error {}
 
 export async function issueOtp(params: {
   target: string;
-  targetType: OtpTarget;
   purpose: OtpPurpose;
   userId?: string;
 }): Promise<void> {
-  const { target, targetType, purpose, userId } = params;
+  const { target, purpose, userId } = params;
 
-  await enforceRateLimit(`otp:resend:${targetType}:${target}`, 1, RESEND_COOLDOWN_MS);
-  await enforceRateLimit(
-    `otp:issue:${targetType}:${target}:${purpose}`,
-    MAX_ISSUE_PER_WINDOW,
-    ISSUE_WINDOW_MS
-  );
+  await enforceRateLimit(`otp:resend:${target}`, 1, RESEND_COOLDOWN_MS);
+  await enforceRateLimit(`otp:issue:${target}:${purpose}`, MAX_ISSUE_PER_WINDOW, ISSUE_WINDOW_MS);
 
-  const code = generateCode();
+  const user = userId
+    ? await db.user.findUnique({ where: { id: userId }, select: { isDemo: true } })
+    : null;
+  const isDemo = user?.isDemo ?? false;
+
+  const code = isDemo ? DEMO_OTP_CODE : generateCode();
   const codeHash = await bcrypt.hash(code, bcryptRounds());
 
   await db.otpCode.create({
     data: {
       userId,
       target,
-      targetType,
       purpose,
       codeHash,
       expiresAt: new Date(Date.now() + OTP_TTL_MS),
@@ -55,27 +59,23 @@ export async function issueOtp(params: {
     },
   });
 
-  if (targetType === "EMAIL") {
+  if (!isDemo) {
     await sendOtpEmail(target, code);
-  } else {
-    await sendOtpSms(target, code);
   }
 }
 
 export async function verifyOtp(params: {
   target: string;
-  targetType: OtpTarget;
   purpose: OtpPurpose;
   code: string;
 }): Promise<{ ok: true; otpId: string } | { ok: false; reason: string }> {
-  const { target, targetType, purpose, code } = params;
+  const { target, purpose, code } = params;
 
-  await enforceRateLimit(`otp:verify:${targetType}:${target}`, 10, 10 * 60 * 1000);
+  await enforceRateLimit(`otp:verify:${target}`, 10, 10 * 60 * 1000);
 
   const candidate = await db.otpCode.findFirst({
     where: {
       target,
-      targetType,
       purpose,
       consumedAt: null,
       expiresAt: { gt: new Date() },

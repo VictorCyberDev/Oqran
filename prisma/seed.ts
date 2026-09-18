@@ -1,9 +1,24 @@
+import { randomBytes } from "crypto";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "../src/generated/prisma/client";
+
+// This script sets isDemo: true and grants role/status directly — the only
+// place either is ever set outside a live database edit. Never runnable
+// against a production environment.
+if (process.env.NODE_ENV === "production") {
+  console.error("Refusing to run prisma/seed.ts with NODE_ENV=production.");
+  process.exit(1);
+}
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is not set");
 const db = new PrismaClient({ adapter: new PrismaMariaDb(url) });
+
+const DEMO_OTP_CODE = "000000";
+
+function freshInviteCode(prefix: string) {
+  return `${prefix}-${randomBytes(4).toString("hex").toUpperCase()}`;
+}
 
 async function main() {
   const bourdillon = await db.address.upsert({
@@ -38,7 +53,7 @@ async function main() {
     update: {},
   });
 
-  await db.address.upsert({
+  const ademola = await db.address.upsert({
     where: { id: "seed-addr-ademola" },
     create: {
       id: "seed-addr-ademola",
@@ -89,15 +104,49 @@ async function main() {
     update: {},
   });
 
-  await db.organization.upsert({
-    where: { inviteCode: "OQ-BANK-DEMO" },
+  await db.incident.upsert({
+    where: { referenceCode: "OQ-SEED-0003" },
     create: {
-      name: "Demo Commercial Bank",
-      type: "BANK",
-      inviteCode: "OQ-BANK-DEMO",
-      verificationStatus: "VERIFIED",
+      type: "Fraud",
+      severity: "CRITICAL",
+      description: "Seed data for local risk-scoring demo",
+      addressId: ademola.id,
+      latitude: ademola.latitude,
+      longitude: ademola.longitude,
+      status: "SUBMITTED",
+      referenceCode: "OQ-SEED-0003",
+      createdAt: daysAgo(1),
     },
     update: {},
+  });
+
+  // Fresh (rotated on every seed run), unused invite codes for testing the
+  // real self-service invite-code-plus-approval flow end to end.
+  const bankInviteCode = freshInviteCode("OQ-BANK");
+  const govInviteCode = freshInviteCode("OQ-GOV");
+
+  const bankOrg = await db.organization.upsert({
+    where: { id: "seed-org-bank" },
+    create: {
+      id: "seed-org-bank",
+      name: "Demo Bank",
+      type: "BANK",
+      inviteCode: bankInviteCode,
+      verificationStatus: "VERIFIED",
+    },
+    update: { inviteCode: bankInviteCode },
+  });
+
+  const govOrg = await db.organization.upsert({
+    where: { id: "seed-org-gov" },
+    create: {
+      id: "seed-org-gov",
+      name: "Demo Government Agency",
+      type: "GOVERNMENT",
+      inviteCode: govInviteCode,
+      verificationStatus: "VERIFIED",
+    },
+    update: { inviteCode: govInviteCode },
   });
 
   await db.fraudSignal.upsert({
@@ -111,7 +160,7 @@ async function main() {
       source: "PUBLIC_WATCHLIST",
       watchlistRef: "CBN-NIBSS-WL-88213",
       flaggedAt: daysAgo(0),
-      slaDeadline: new Date(now - 5 * 60 * 1000),
+      slaDeadline: new Date(now - 5 * 60 * 1000), // past the 30-min SLA
     },
     update: {},
   });
@@ -126,7 +175,7 @@ async function main() {
       severity: "GUARDED",
       source: "INTERNAL_REPORT",
       flaggedAt: daysAgo(0),
-      slaDeadline: new Date(now + 8 * 60 * 1000),
+      slaDeadline: new Date(now + 8 * 60 * 1000), // inside the 30-min SLA
     },
     update: {},
   });
@@ -146,15 +195,49 @@ async function main() {
     update: {},
   });
 
-  await db.organization.upsert({
-    where: { inviteCode: "OQ-GOV-DEMO" },
+  // --- Demo accounts (isDemo: true) ------------------------------------
+  // Sign in with the email below and the fixed code 000000 — never sent
+  // as a real email, never hinted at in the sign-in UI.
+
+  const govUser = await db.user.upsert({
+    where: { email: "government@oqran-demo.test" },
     create: {
-      name: "Demo State Investigations Bureau",
-      type: "GOVERNMENT",
-      inviteCode: "OQ-GOV-DEMO",
-      verificationStatus: "VERIFIED",
+      role: "GOVERNMENT",
+      email: "government@oqran-demo.test",
+      authMethod: "EMAIL",
+      status: "ACTIVE",
+      isDemo: true,
+      organizationId: govOrg.id,
+      displayName: "Demo Government Investigator",
     },
-    update: {},
+    update: { isDemo: true, status: "ACTIVE", organizationId: govOrg.id },
+  });
+
+  const bankUser = await db.user.upsert({
+    where: { email: "bank@oqran-demo.test" },
+    create: {
+      role: "BANK",
+      email: "bank@oqran-demo.test",
+      authMethod: "EMAIL",
+      status: "ACTIVE",
+      isDemo: true,
+      organizationId: bankOrg.id,
+      displayName: "Demo Bank Compliance Officer",
+    },
+    update: { isDemo: true, status: "ACTIVE", organizationId: bankOrg.id },
+  });
+
+  const businessUser = await db.user.upsert({
+    where: { email: "business@oqran-demo.test" },
+    create: {
+      role: "BUSINESS",
+      email: "business@oqran-demo.test",
+      authMethod: "EMAIL",
+      status: "ACTIVE",
+      isDemo: true,
+      displayName: "Demo Business Owner",
+    },
+    update: { isDemo: true, status: "ACTIVE" },
   });
 
   await db.user.upsert({
@@ -169,7 +252,87 @@ async function main() {
     update: {},
   });
 
-  console.log("Seed complete.");
+  // Sample zones so the business demo dashboard isn't empty.
+  await db.zone.upsert({
+    where: { id: "seed-zone-lekki" },
+    create: {
+      id: "seed-zone-lekki",
+      businessId: businessUser.id,
+      name: "Lekki Phase 1 — Zone B",
+      type: "Delivery Zone",
+      latitude: 6.4392,
+      longitude: 3.4756,
+      radiusKm: 2,
+    },
+    update: {},
+  });
+
+  await db.zone.upsert({
+    where: { id: "seed-zone-apapa" },
+    create: {
+      id: "seed-zone-apapa",
+      businessId: businessUser.id,
+      name: "Apapa Wharf Corridor",
+      type: "Logistics Corridor",
+      latitude: 6.4432,
+      longitude: 3.3592,
+      radiusKm: 3,
+    },
+    update: {},
+  });
+
+  // Personal Activity/History rows for each demo account.
+  await db.activityLog.createMany({
+    data: [
+      {
+        userId: govUser.id,
+        action: "SIGN_IN",
+        description: "Signed in on trusted device (Demo)",
+        createdAt: daysAgo(1),
+      },
+      {
+        userId: govUser.id,
+        action: "SPATIAL_GRID_VIEWED",
+        description: "Reviewed national incident map",
+        createdAt: daysAgo(0),
+      },
+      {
+        userId: bankUser.id,
+        action: "SIGN_IN",
+        description: "Signed in on trusted device (Demo)",
+        createdAt: daysAgo(2),
+      },
+      {
+        userId: bankUser.id,
+        action: "FRAUD_SIGNAL_EXPORTED",
+        description: bourdillon.label,
+        createdAt: daysAgo(0),
+      },
+      {
+        userId: businessUser.id,
+        action: "SIGN_IN",
+        description: "Signed in on trusted device (Demo)",
+        createdAt: daysAgo(3),
+      },
+      {
+        userId: businessUser.id,
+        action: "ZONE_VIEWED",
+        description: "Lekki Phase 1 — Zone B",
+        createdAt: daysAgo(0),
+      },
+    ],
+  });
+
+  console.log("\nSeed complete.\n");
+  console.log("Demo accounts (sign in with the fixed code below — never a real email):");
+  console.log(`  Government: government@oqran-demo.test`);
+  console.log(`  Bank:       bank@oqran-demo.test`);
+  console.log(`  Business:   business@oqran-demo.test`);
+  console.log(`  Demo OTP code: ${DEMO_OTP_CODE}`);
+  console.log("\nFresh invite codes (real approval flow — use a different, non-demo email):");
+  console.log(`  Bank invite code:       ${bankInviteCode}`);
+  console.log(`  Government invite code: ${govInviteCode}`);
+  console.log("");
 }
 
 main()

@@ -9,14 +9,13 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { IconCircle } from "@/components/ui/IconCircle";
 
-type TargetType = "PHONE" | "EMAIL";
 type SelfServiceRole = "CITIZEN" | "BUSINESS" | "DEVELOPER";
 type OrgRole = "BANK" | "GOVERNMENT";
 
 type Step =
   | { name: "role" }
   | { name: "credential"; role: SelfServiceRole }
-  | { name: "otp"; role: SelfServiceRole; target: string; targetType: TargetType }
+  | { name: "otp"; role: SelfServiceRole; email: string; phone: string }
   | { name: "org"; role: OrgRole }
   | { name: "pending"; referenceCode: string; role: OrgRole }
   | { name: "created"; role: SelfServiceRole };
@@ -54,8 +53,8 @@ async function postJson(url: string, body: unknown) {
 export default function CreateAccountPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>({ name: "role" });
-  const [targetType, setTargetType] = useState<TargetType>("PHONE");
-  const [target, setTarget] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [orgMethod, setOrgMethod] = useState<"invite" | "email">("invite");
   const [inviteCode, setInviteCode] = useState("");
@@ -66,7 +65,7 @@ export default function CreateAccountPage() {
 
   function goHome(role: string) {
     const path =
-      { CITIZEN: "/citizen", BUSINESS: "/business", BANK: "/bank", GOVERNMENT: "/gov", DEVELOPER: "/developer", ADMIN: "/admin" }[
+      { CITIZEN: "/citizen", BUSINESS: "/business", BANK: "/bank", GOVERNMENT: "/gov", DEVELOPER: "/developer", ADMIN: "/admin", PLATFORM_OWNER: "/owner" }[
         role
       ] ?? "/";
     router.push(path);
@@ -76,14 +75,10 @@ export default function CreateAccountPage() {
     if (step.name !== "credential") return;
     setBusy(true);
     setError(null);
-    const res = await postJson("/api/auth/create-account/continue", {
-      target,
-      targetType,
-      role: step.role,
-    });
+    const res = await postJson("/api/auth/create-account/continue", { email, role: step.role });
     setBusy(false);
     if (!res.ok) return setError(res.error ?? "Something went wrong.");
-    setStep({ name: "otp", role: step.role, target, targetType });
+    setStep({ name: "otp", role: step.role, email, phone });
   }
 
   async function submitOtp() {
@@ -91,10 +86,10 @@ export default function CreateAccountPage() {
     setBusy(true);
     setError(null);
     const res = await postJson("/api/auth/create-account/verify-otp", {
-      target: step.target,
-      targetType: step.targetType,
+      email: step.email,
       code,
       role: step.role,
+      phone: step.phone || undefined,
     });
     setBusy(false);
     if (!res.ok) return setError(res.error ?? "Something went wrong.");
@@ -164,24 +159,27 @@ export default function CreateAccountPage() {
           <AuthHeading title={`Create your ${ROLE_LABEL[step.role]} account`} />
           <FormError message={error} />
           <div className="flex flex-col gap-4">
-            <SegmentedControl
-              options={[
-                { value: "PHONE", label: "SMS" },
-                { value: "EMAIL", label: "Email" },
-              ]}
-              value={targetType}
-              onChange={(v) => {
-                setTargetType(v);
-                setTarget("");
-              }}
-            />
-            <Input
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              placeholder={targetType === "PHONE" ? "0803 000 0000" : "you@email.com"}
-              type={targetType === "PHONE" ? "tel" : "email"}
-            />
-            <Button fullWidth disabled={busy || !target} onClick={submitCredential}>
+            <div className="flex flex-col gap-2.5">
+              <label className="text-xs font-semibold text-text-primary">Email address</label>
+              <Input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@email.com"
+                type="email"
+              />
+            </div>
+            <div className="flex flex-col gap-2.5">
+              <label className="text-xs font-semibold text-text-primary">
+                Phone number <span className="font-normal text-text-primary/45">(optional)</span>
+              </label>
+              <Input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="0803 000 0000"
+                type="tel"
+              />
+            </div>
+            <Button fullWidth disabled={busy || !email} onClick={submitCredential}>
               Send code
             </Button>
             <p className="text-center text-xs font-medium text-text-primary/45">
@@ -194,7 +192,7 @@ export default function CreateAccountPage() {
 
       {step.name === "otp" && (
         <>
-          <AuthHeading title="Enter verification code" subtitle={`Code sent to ${step.target}`} />
+          <AuthHeading title="Enter verification code" subtitle={`Code sent to ${step.email}`} />
           <FormError message={error} />
           <div className="flex flex-col gap-4">
             <Input

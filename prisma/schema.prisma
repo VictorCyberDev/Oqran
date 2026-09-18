@@ -24,6 +24,10 @@ enum Role {
   GOVERNMENT
   DEVELOPER
   ADMIN
+  /// The platform operator's own role. Never grantable through signup,
+  /// invite, or admin approval — set only via the seed script or a direct
+  /// database update against a specific, known account.
+  PLATFORM_OWNER
 }
 
 enum AuthMethod {
@@ -46,6 +50,10 @@ model User {
   nin               String?    @unique
   status            UserStatus @default(ACTIVE)
   displayName       String?
+  /// Demo-only account: OTP issuance skips real delivery and accepts a
+  /// single fixed code instead. Never settable through any public signup
+  /// or API path — only ever set directly by the seed script.
+  isDemo            Boolean    @default(false)
   organizationId    String?
   organization      Organization? @relation(fields: [organizationId], references: [id])
   createdAt         DateTime   @default(now())
@@ -90,13 +98,45 @@ model Organization {
 
   users            User[]
   pendingApprovals PendingApproval[]
+  subscription     Subscription?
 
   @@map("organizations")
 }
 
-enum OtpTarget {
-  PHONE
-  EMAIL
+enum PlanTier {
+  FREE
+  STANDARD
+  ENTERPRISE
+}
+
+enum BillingCycle {
+  MONTHLY
+  ANNUAL
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+/// Structured placeholder — no payment provider is wired yet. Amounts are
+/// in Naira. Ready to be driven by a real billing integration later; for
+/// now this is manually entered/seeded so the owner dashboard has
+/// something real to show instead of a blank section.
+model Subscription {
+  id             String             @id @default(cuid())
+  organizationId String             @unique
+  organization   Organization       @relation(fields: [organizationId], references: [id])
+  planTier       PlanTier           @default(FREE)
+  status         SubscriptionStatus @default(TRIAL)
+  amount         Float              @default(0)
+  billingCycle   BillingCycle       @default(MONTHLY)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@map("subscriptions")
 }
 
 enum OtpPurpose {
@@ -109,8 +149,8 @@ model OtpCode {
   id           String     @id @default(cuid())
   userId       String?
   user         User?      @relation(fields: [userId], references: [id])
+  /// Always an email address — the only verification channel.
   target       String
-  targetType   OtpTarget
   purpose      OtpPurpose
   codeHash     String
   expiresAt    DateTime

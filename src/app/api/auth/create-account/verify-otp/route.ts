@@ -1,37 +1,46 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { credentialSchema, otpCodeSchema, selfServiceRoleSchema } from "@/lib/validation";
+import { emailSchema, otpCodeSchema, phoneSchema, selfServiceRoleSchema } from "@/lib/validation";
 import { verifyOtp } from "@/lib/auth/otp";
 import { createSessionToken, setSessionCookie } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
 import { clientIp, userAgent } from "@/lib/http";
 import { withErrorHandling } from "@/lib/api-handler";
 
-const bodySchema = credentialSchema.and(
-  z.object({ code: otpCodeSchema, role: selfServiceRoleSchema })
-);
+const bodySchema = z.object({
+  email: emailSchema,
+  code: otpCodeSchema,
+  role: selfServiceRoleSchema,
+  // Collected for future features (not a verification channel) — optional.
+  phone: phoneSchema.optional(),
+});
 
 export const POST = withErrorHandling(async (req) => {
   const body = bodySchema.parse(await req.json());
 
-  const result = await verifyOtp({
-    target: body.target,
-    targetType: body.targetType,
-    purpose: "CREATE_ACCOUNT",
-    code: body.code,
-  });
+  const result = await verifyOtp({ target: body.email, purpose: "CREATE_ACCOUNT", code: body.code });
 
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.reason });
   }
 
+  if (body.phone) {
+    const existingPhone = await db.user.findUnique({ where: { phone: body.phone } });
+    if (existingPhone) {
+      return NextResponse.json({
+        ok: false,
+        error: "That phone number is already on another account.",
+      });
+    }
+  }
+
   const user = await db.user.create({
     data: {
       role: body.role,
-      authMethod: body.targetType === "PHONE" ? "SMS" : "EMAIL",
-      phone: body.targetType === "PHONE" ? body.target : undefined,
-      email: body.targetType === "EMAIL" ? body.target : undefined,
+      authMethod: "EMAIL",
+      email: body.email,
+      phone: body.phone,
       status: "ACTIVE",
     },
   });

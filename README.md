@@ -2,7 +2,8 @@
 
 Nigeria's spatial risk-intelligence platform. Next.js (App Router) + TypeScript,
 Tailwind v4, Framer Motion, Prisma against TiDB Cloud, and a custom
-JWT/OTP/device-trust auth system (no third-party auth provider).
+JWT/OTP/device-trust auth system (no third-party auth provider). Email is the
+only verification channel — phone numbers are collected but never used for OTP.
 
 ## Setup
 
@@ -11,9 +12,8 @@ JWT/OTP/device-trust auth system (no third-party auth provider).
    - `DATABASE_URL` — a TiDB Cloud Starter connection string
    - `AUTH_JWT_SECRET` — `openssl rand -base64 48`
    - `RESEND_API_KEY` / `EMAIL_FROM` — for real OTP email delivery (optional in dev — without it, OTP codes print to the server console)
-   - `SMS_PROVIDER_URL` / `SMS_PROVIDER_API_KEY` — no vendor is wired yet; pick one (Termii, Africa's Talking, etc.) and adapt `src/lib/notify/sms.ts`
 3. `npm run db:push` (or `db:migrate` once you're managing real migrations) to create the schema on TiDB
-4. `npm run db:seed` for demo addresses, incidents, fraud signals, and org invite codes
+4. `npm run db:seed` for demo addresses, incidents, fraud signals, org invite codes, and seeded demo accounts (refuses to run with `NODE_ENV=production`)
 5. `npm run dev`
 
 ## Scripts

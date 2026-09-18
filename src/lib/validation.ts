@@ -26,12 +26,5 @@ export const pinSchema = z
   .string()
   .regex(/^\d{4,6}$/, "PIN must be 4-6 digits");
 
-export const targetTypeSchema = z.enum(["PHONE", "EMAIL"]);
-
-export const credentialSchema = z.discriminatedUnion("targetType", [
-  z.object({ targetType: z.literal("PHONE"), target: phoneSchema }),
-  z.object({ targetType: z.literal("EMAIL"), target: emailSchema }),
-]);
-
 export const selfServiceRoleSchema = z.enum(["CITIZEN", "BUSINESS", "DEVELOPER"]);
 export const orgRoleSchema = z.enum(["BANK", "GOVERNMENT"]);

@@ -7,6 +7,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   GOVERNMENT: "Government Investigator",
   DEVELOPER: "Developer",
   ADMIN: "Admin",
+  PLATFORM_OWNER: "Platform Owner",
 };
 
 export function roleHomePath(role: Role): string {
@@ -23,6 +24,8 @@ export function roleHomePath(role: Role): string {
       return "/developer";
     case "ADMIN":
       return "/admin";
+    case "PLATFORM_OWNER":
+      return "/owner";
     default:
       return "/";
   }
