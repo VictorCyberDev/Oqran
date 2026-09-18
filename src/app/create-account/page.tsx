@@ -11,11 +11,13 @@ import { IconCircle } from "@/components/ui/IconCircle";
 
 type SelfServiceRole = "CITIZEN" | "BUSINESS" | "DEVELOPER";
 type OrgRole = "BANK" | "GOVERNMENT";
+type BusinessOrgChoice = { mode: "new"; orgName: string } | { mode: "join"; inviteCode: string };
 
 type Step =
   | { name: "role" }
-  | { name: "credential"; role: SelfServiceRole }
-  | { name: "otp"; role: SelfServiceRole; email: string; phone: string }
+  | { name: "business-org" }
+  | { name: "credential"; role: SelfServiceRole; businessOrg?: BusinessOrgChoice }
+  | { name: "otp"; role: SelfServiceRole; email: string; phone: string; businessOrg?: BusinessOrgChoice }
   | { name: "org"; role: OrgRole }
   | { name: "pending"; referenceCode: string; role: OrgRole }
   | { name: "created"; role: SelfServiceRole };
@@ -60,6 +62,10 @@ export default function CreateAccountPage() {
   const [inviteCode, setInviteCode] = useState("");
   const [orgEmail, setOrgEmail] = useState("");
   const [idNumber, setIdNumber] = useState("");
+  const [isLeadRequest, setIsLeadRequest] = useState(false);
+  const [bizOrgMode, setBizOrgMode] = useState<"new" | "join">("new");
+  const [bizOrgName, setBizOrgName] = useState("");
+  const [bizInviteCode, setBizInviteCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -78,7 +84,7 @@ export default function CreateAccountPage() {
     const res = await postJson("/api/auth/create-account/continue", { email, role: step.role });
     setBusy(false);
     if (!res.ok) return setError(res.error ?? "Something went wrong.");
-    setStep({ name: "otp", role: step.role, email, phone });
+    setStep({ name: "otp", role: step.role, email, phone, businessOrg: step.businessOrg });
   }
 
   async function submitOtp() {
@@ -90,11 +96,18 @@ export default function CreateAccountPage() {
       code,
       role: step.role,
       phone: step.phone || undefined,
+      businessOrg: step.businessOrg,
     });
     setBusy(false);
     if (!res.ok) return setError(res.error ?? "Something went wrong.");
     if (step.role === "DEVELOPER") setStep({ name: "created", role: step.role });
     else goHome(res.role);
+  }
+
+  function submitBusinessOrg() {
+    const businessOrg: BusinessOrgChoice =
+      bizOrgMode === "new" ? { mode: "new", orgName: bizOrgName } : { mode: "join", inviteCode: bizInviteCode };
+    setStep({ name: "credential", role: "BUSINESS", businessOrg });
   }
 
   async function submitOrgVerify() {
@@ -107,6 +120,7 @@ export default function CreateAccountPage() {
       email: orgEmail,
       inviteCode: orgMethod === "invite" ? inviteCode : undefined,
       idNumber,
+      isLeadRequest,
     });
     setBusy(false);
     if (!res.ok) return setError(res.error ?? "Something went wrong.");
@@ -119,12 +133,15 @@ export default function CreateAccountPage() {
       onBack={
         step.name === "role" || step.name === "pending" || step.name === "created"
           ? undefined
-          : () =>
-              setStep(
-                step.name === "otp"
-                  ? { name: "credential", role: step.role }
-                  : { name: "role" }
-              )
+          : () => {
+              if (step.name === "otp") {
+                setStep({ name: "credential", role: step.role, businessOrg: step.businessOrg });
+              } else if (step.name === "credential" && step.role === "BUSINESS") {
+                setStep({ name: "business-org" });
+              } else {
+                setStep({ name: "role" });
+              }
+            }
       }
     >
       {step.name === "role" && (
@@ -134,11 +151,11 @@ export default function CreateAccountPage() {
             {ROLE_CARDS.map((card) => (
               <button
                 key={card.key}
-                onClick={() =>
-                  card.restricted
-                    ? setStep({ name: "org", role: card.key as OrgRole })
-                    : setStep({ name: "credential", role: card.key as SelfServiceRole })
-                }
+                onClick={() => {
+                  if (card.restricted) setStep({ name: "org", role: card.key as OrgRole });
+                  else if (card.key === "BUSINESS") setStep({ name: "business-org" });
+                  else setStep({ name: "credential", role: card.key as SelfServiceRole });
+                }}
                 className="flex flex-col gap-1 rounded-2xl border border-border-subtle bg-bg-surface p-4.5 text-left transition-colors hover:border-border-default"
               >
                 <div className="flex items-center gap-2">
@@ -150,6 +167,48 @@ export default function CreateAccountPage() {
                 </span>
               </button>
             ))}
+          </div>
+        </>
+      )}
+
+      {step.name === "business-org" && (
+        <>
+          <AuthHeading title="Set up your business" subtitle="No admin review needed — you're in control of your own team" />
+          <FormError message={error} />
+          <div className="flex flex-col gap-4">
+            <SegmentedControl
+              options={[
+                { value: "new", label: "Start a new business" },
+                { value: "join", label: "Join with invite code" },
+              ]}
+              value={bizOrgMode}
+              onChange={setBizOrgMode}
+            />
+            {bizOrgMode === "new" ? (
+              <Input
+                value={bizOrgName}
+                onChange={(e) => setBizOrgName(e.target.value)}
+                placeholder="Business name"
+              />
+            ) : (
+              <Input
+                value={bizInviteCode}
+                onChange={(e) => setBizInviteCode(e.target.value)}
+                placeholder="Invite code from your team lead"
+              />
+            )}
+            <Button
+              fullWidth
+              disabled={bizOrgMode === "new" ? bizOrgName.length < 2 : !bizInviteCode}
+              onClick={submitBusinessOrg}
+            >
+              Continue
+            </Button>
+            <p className="text-center text-xs font-medium text-text-primary/45">
+              {bizOrgMode === "new"
+                ? "You'll be the primary contact — you can invite teammates afterward."
+                : "Ask your team lead for the invite code from their account."}
+            </p>
           </div>
         </>
       )}
@@ -244,6 +303,16 @@ export default function CreateAccountPage() {
               placeholder={step.role === "GOVERNMENT" ? "NIN" : "BVN"}
               inputMode="numeric"
             />
+            <label className="flex items-start gap-2.5 text-xs font-medium text-text-primary/70">
+              <input
+                type="checkbox"
+                checked={isLeadRequest}
+                onChange={(e) => setIsLeadRequest(e.target.checked)}
+                className="mt-0.5"
+              />
+              I&rsquo;m the primary contact for this organization — once approved, I can invite
+              and manage my organization&rsquo;s other staff
+            </label>
             <Button
               fullWidth
               disabled={busy || !orgEmail || idNumber.length < 10}

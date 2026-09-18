@@ -41,6 +41,14 @@ export default async function AccountPage() {
       </Card>
 
       <div className="flex flex-col gap-2">
+        {user.role === "BUSINESS" && user.orgRole === "LEAD" && user.organizationId && (
+          <Link
+            href="/account/team"
+            className="rounded-lg border border-border-subtle bg-bg-surface px-4 py-4 text-sm font-semibold text-text-primary"
+          >
+            Team Members
+          </Link>
+        )}
         <Link
           href="/account/devices"
           className="rounded-lg border border-border-subtle bg-bg-surface px-4 py-4 text-sm font-semibold text-text-primary"

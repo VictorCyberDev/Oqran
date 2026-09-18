@@ -27,7 +27,10 @@ export default async function AccessManagementPage() {
             <Card key={a.id} className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <span className="text-md font-bold text-text-primary">{a.user.email}</span>
-                <Badge tone="brand">{a.requestedRole}</Badge>
+                <div className="flex items-center gap-1.5">
+                  {a.isLeadRequest && <Badge tone="watchlist">Requests LEAD</Badge>}
+                  <Badge tone="brand">{a.requestedRole}</Badge>
+                </div>
               </div>
               <div className="flex flex-col gap-1 text-xs font-medium text-text-primary/55">
                 <span>Reference {a.referenceCode}</span>

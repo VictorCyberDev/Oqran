@@ -1,8 +1,15 @@
 import { db } from "@/lib/db";
 import { daysAgo } from "@/lib/dates";
+import { getSession } from "@/lib/auth/session";
 import { GovDashboardClient } from "@/components/gov/GovDashboardClient";
 
 export default async function GovSpatialGridPage() {
+  const session = await getSession();
+  const viewer = session
+    ? await db.user.findUnique({ where: { id: session.userId } })
+    : null;
+  const isLead = viewer?.orgRole === "LEAD" && !!viewer.organizationId;
+
   const incidents = await db.incident.findMany({
     where: {
       latitude: { not: null },
@@ -25,6 +32,7 @@ export default async function GovSpatialGridPage() {
 
   return (
     <GovDashboardClient
+      isLead={isLead}
       incidents={incidents.map((i) => ({
         ...i,
         latitude: i.latitude!,

@@ -7,7 +7,13 @@ import { Badge, RISK_BADGE_TONE } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { Sheet } from "@/components/ui/Sheet";
 
-export function GovDashboardClient({ incidents }: { incidents: MapIncident[] }) {
+export function GovDashboardClient({
+  incidents,
+  isLead,
+}: {
+  incidents: MapIncident[];
+  isLead: boolean;
+}) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<MapIncident | null>(null);
 
@@ -16,6 +22,11 @@ export function GovDashboardClient({ incidents }: { incidents: MapIncident[] }) 
       <header className="flex items-center justify-between px-5 py-4">
         <span className="text-sm font-extrabold tracking-[0.12em] text-brand">OQRAN</span>
         <div className="flex items-center gap-2">
+          {isLead && (
+            <Link href="/gov/team" className="text-xs font-semibold text-brand">
+              Manage my team
+            </Link>
+          )}
           <Badge tone="brand">Investigator</Badge>
           <Link
             href="/account"

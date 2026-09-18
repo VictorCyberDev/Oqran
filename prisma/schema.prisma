@@ -56,6 +56,11 @@ model User {
   isDemo            Boolean    @default(false)
   organizationId    String?
   organization      Organization? @relation(fields: [organizationId], references: [id])
+  /// Standing within organizationId — irrelevant for users with none. A
+  /// LEAD can invite/remove staff in their own org (see /api/org/staff/*);
+  /// promotion to LEAD happens only via org-verify's isLeadRequest (on
+  /// admin approval) or by being the one who created the organization.
+  orgRole           OrgMemberRole @default(MEMBER)
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
@@ -78,6 +83,12 @@ model User {
 enum OrganizationType {
   BANK
   GOVERNMENT
+  BUSINESS
+}
+
+enum OrgMemberRole {
+  MEMBER
+  LEAD
 }
 
 enum OrganizationVerificationStatus {
@@ -389,6 +400,10 @@ model PendingApproval {
   organizationId String?
   organization   Organization?  @relation(fields: [organizationId], references: [id])
   requestedRole  Role
+  /// Applicant indicated they're the primary contact for the organization
+  /// at org-verify signup. On admin approval, promotes the user to LEAD
+  /// instead of adding a separate signup screen for it.
+  isLeadRequest  Boolean        @default(false)
   referenceCode  String         @unique
   status         ApprovalStatus @default(PENDING)
   reviewedById   String?

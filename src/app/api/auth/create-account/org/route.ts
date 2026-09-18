@@ -12,6 +12,7 @@ const bodySchema = z.object({
   email: emailSchema,
   inviteCode: z.string().min(1).optional(),
   idNumber: z.string().regex(/^\d{10,11}$/, "Enter a valid 10-11 digit ID number"),
+  isLeadRequest: z.boolean().optional(),
 });
 
 function referenceCode() {
@@ -60,6 +61,7 @@ export const POST = withErrorHandling(async (req) => {
       userId: user.id,
       organizationId,
       requestedRole: body.role,
+      isLeadRequest: body.isLeadRequest ?? false,
       referenceCode: referenceCode(),
     },
   });

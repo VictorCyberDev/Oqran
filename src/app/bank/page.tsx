@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { nowMs } from "@/lib/dates";
+import { getSession } from "@/lib/auth/session";
 import { AppShell } from "@/components/layout/AppShell";
 import { RoleHeader } from "@/components/layout/RoleHeader";
 import { Badge, RISK_BADGE_TONE } from "@/components/ui/Badge";
@@ -17,10 +18,12 @@ export default async function BankFraudFeedPage({
   const { filter } = await searchParams;
   const now = nowMs();
 
-  const signals = await db.fraudSignal.findMany({
-    orderBy: { flaggedAt: "desc" },
-    take: 50,
-  });
+  const session = await getSession();
+  const [signals, viewer] = await Promise.all([
+    db.fraudSignal.findMany({ orderBy: { flaggedAt: "desc" }, take: 50 }),
+    session ? db.user.findUnique({ where: { id: session.userId } }) : null,
+  ]);
+  const isLead = viewer?.orgRole === "LEAD" && !!viewer.organizationId;
 
   const filtered =
     filter && filter !== "all"
@@ -30,6 +33,11 @@ export default async function BankFraudFeedPage({
   return (
     <AppShell>
       <RoleHeader roleLabel="Compliance" initial="A" />
+      {isLead && (
+        <Link href="/bank/team" className="-mt-3 self-start text-xs font-semibold text-brand">
+          Manage my team →
+        </Link>
+      )}
 
       <div className="flex items-center gap-2">
         <StatusDot tone="low" pulse />

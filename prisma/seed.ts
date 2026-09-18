@@ -199,6 +199,18 @@ async function main() {
   // Sign in with the email below and the fixed code 000000 — never sent
   // as a real email, never hinted at in the sign-in UI.
 
+  const bizOrg = await db.organization.upsert({
+    where: { id: "seed-org-business" },
+    create: {
+      id: "seed-org-business",
+      name: "Demo Business",
+      type: "BUSINESS",
+      inviteCode: freshInviteCode("OQ-BIZ"),
+      verificationStatus: "VERIFIED",
+    },
+    update: {},
+  });
+
   const govUser = await db.user.upsert({
     where: { email: "government@oqran-demo.test" },
     create: {
@@ -208,9 +220,10 @@ async function main() {
       status: "ACTIVE",
       isDemo: true,
       organizationId: govOrg.id,
-      displayName: "Demo Government Investigator",
+      orgRole: "LEAD",
+      displayName: "Demo Government Investigator (Lead)",
     },
-    update: { isDemo: true, status: "ACTIVE", organizationId: govOrg.id },
+    update: { isDemo: true, status: "ACTIVE", organizationId: govOrg.id, orgRole: "LEAD" },
   });
 
   const bankUser = await db.user.upsert({
@@ -222,9 +235,10 @@ async function main() {
       status: "ACTIVE",
       isDemo: true,
       organizationId: bankOrg.id,
-      displayName: "Demo Bank Compliance Officer",
+      orgRole: "LEAD",
+      displayName: "Demo Bank Compliance Officer (Lead)",
     },
-    update: { isDemo: true, status: "ACTIVE", organizationId: bankOrg.id },
+    update: { isDemo: true, status: "ACTIVE", organizationId: bankOrg.id, orgRole: "LEAD" },
   });
 
   const businessUser = await db.user.upsert({
@@ -235,9 +249,58 @@ async function main() {
       authMethod: "EMAIL",
       status: "ACTIVE",
       isDemo: true,
-      displayName: "Demo Business Owner",
+      organizationId: bizOrg.id,
+      orgRole: "LEAD",
+      displayName: "Demo Business Owner (Lead)",
     },
-    update: { isDemo: true, status: "ACTIVE" },
+    update: { isDemo: true, status: "ACTIVE", organizationId: bizOrg.id, orgRole: "LEAD" },
+  });
+
+  // One MEMBER-level demo account per org, so the team/member lists aren't
+  // empty on first login.
+  const govMember = await db.user.upsert({
+    where: { email: "government-member@oqran-demo.test" },
+    create: {
+      role: "GOVERNMENT",
+      email: "government-member@oqran-demo.test",
+      authMethod: "EMAIL",
+      status: "ACTIVE",
+      isDemo: true,
+      organizationId: govOrg.id,
+      orgRole: "MEMBER",
+      displayName: "Demo Government Investigator (Member)",
+    },
+    update: { isDemo: true, status: "ACTIVE", organizationId: govOrg.id, orgRole: "MEMBER" },
+  });
+
+  const bankMember = await db.user.upsert({
+    where: { email: "bank-member@oqran-demo.test" },
+    create: {
+      role: "BANK",
+      email: "bank-member@oqran-demo.test",
+      authMethod: "EMAIL",
+      status: "ACTIVE",
+      isDemo: true,
+      organizationId: bankOrg.id,
+      orgRole: "MEMBER",
+      displayName: "Demo Bank Compliance Officer (Member)",
+    },
+    update: { isDemo: true, status: "ACTIVE", organizationId: bankOrg.id, orgRole: "MEMBER" },
+  });
+
+  const businessMember = await db.user.upsert({
+    where: { email: "business-member@oqran-demo.test" },
+    create: {
+      role: "BUSINESS",
+      email: "business-member@oqran-demo.test",
+      authMethod: "EMAIL",
+      status: "ACTIVE",
+      isDemo: true,
+      organizationId: bizOrg.id,
+      orgRole: "MEMBER",
+      displayName: "Demo Business Staff (Member)",
+    },
+    update: { isDemo: true, status: "ACTIVE", organizationId: bizOrg.id, orgRole: "MEMBER" },
   });
 
   await db.user.upsert({
@@ -360,15 +423,39 @@ async function main() {
         description: "Lekki Phase 1 — Zone B",
         createdAt: daysAgo(0),
       },
+      {
+        userId: govMember.id,
+        action: "SIGN_IN",
+        description: "Signed in on trusted device (Demo)",
+        createdAt: daysAgo(1),
+      },
+      {
+        userId: bankMember.id,
+        action: "SIGN_IN",
+        description: "Signed in on trusted device (Demo)",
+        createdAt: daysAgo(1),
+      },
+      {
+        userId: businessMember.id,
+        action: "SIGN_IN",
+        description: "Signed in on trusted device (Demo)",
+        createdAt: daysAgo(1),
+      },
     ],
   });
 
   console.log("\nSeed complete.\n");
   console.log("Demo accounts (sign in with the fixed code below — never a real email):");
-  console.log(`  Government: government@oqran-demo.test`);
-  console.log(`  Bank:       bank@oqran-demo.test`);
-  console.log(`  Business:   business@oqran-demo.test`);
+  console.log(`  Government — LEAD:   government@oqran-demo.test`);
+  console.log(`  Government — MEMBER: government-member@oqran-demo.test`);
+  console.log(`  Bank — LEAD:         bank@oqran-demo.test`);
+  console.log(`  Bank — MEMBER:       bank-member@oqran-demo.test`);
+  console.log(`  Business — LEAD:     business@oqran-demo.test`);
+  console.log(`  Business — MEMBER:   business-member@oqran-demo.test`);
   console.log(`  Demo OTP code: ${DEMO_OTP_CODE}`);
+  console.log(
+    "\n  LEAD accounts can manage their team at /bank/team, /gov/team, or /account/team (Business)."
+  );
   console.log("\nFresh invite codes (real approval flow — use a different, non-demo email):");
   console.log(`  Bank invite code:       ${bankInviteCode}`);
   console.log(`  Government invite code: ${govInviteCode}`);

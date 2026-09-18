@@ -30,7 +30,15 @@ export const POST = withErrorHandling(
     });
 
     if (decision === "approve") {
-      await db.user.update({ where: { id: approval.userId }, data: { status: "ACTIVE" } });
+      await db.user.update({
+        where: { id: approval.userId },
+        data: {
+          status: "ACTIVE",
+          // Promote to LEAD only when there's an org to lead — an
+          // email-method signup with no invite code has none.
+          orgRole: approval.isLeadRequest && approval.organizationId ? "LEAD" : undefined,
+        },
+      });
     }
 
     await appendLedgerEntry({
