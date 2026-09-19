@@ -1,3 +1,7 @@
+// Run directly via tsx (npm run seed / db:seed), not through the Prisma CLI —
+// so, unlike prisma7.config.ts (which loads .env itself for db push/migrate),
+// nothing loads .env for this script unless it does so itself.
+import "dotenv/config";
 import { randomBytes } from "crypto";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "../src/generated/prisma/client";
@@ -384,65 +388,88 @@ async function main() {
     update: {},
   });
 
-  // Personal Activity/History rows for each demo account.
-  await db.activityLog.createMany({
-    data: [
+  // Personal Activity/History rows for each demo account. Upserted by a
+  // fixed id, like every other seed row above — createMany has no unique
+  // key to dedupe against, so it would double these rows on every re-run.
+  const activityRows: Array<{
+    id: string;
+    userId: string;
+    action: string;
+    description: string;
+    createdAt: Date;
+  }> = [
       {
+        id: "seed-activity-gov-signin",
         userId: govUser.id,
         action: "SIGN_IN",
         description: "Signed in on trusted device (Demo)",
         createdAt: daysAgo(1),
       },
       {
+        id: "seed-activity-gov-grid",
         userId: govUser.id,
         action: "SPATIAL_GRID_VIEWED",
         description: "Reviewed national incident map",
         createdAt: daysAgo(0),
       },
       {
+        id: "seed-activity-bank-signin",
         userId: bankUser.id,
         action: "SIGN_IN",
         description: "Signed in on trusted device (Demo)",
         createdAt: daysAgo(2),
       },
       {
+        id: "seed-activity-bank-export",
         userId: bankUser.id,
         action: "FRAUD_SIGNAL_EXPORTED",
         description: bourdillon.label,
         createdAt: daysAgo(0),
       },
       {
+        id: "seed-activity-biz-signin",
         userId: businessUser.id,
         action: "SIGN_IN",
         description: "Signed in on trusted device (Demo)",
         createdAt: daysAgo(3),
       },
       {
+        id: "seed-activity-biz-zone",
         userId: businessUser.id,
         action: "ZONE_VIEWED",
         description: "Lekki Phase 1 — Zone B",
         createdAt: daysAgo(0),
       },
       {
+        id: "seed-activity-gov-member-signin",
         userId: govMember.id,
         action: "SIGN_IN",
         description: "Signed in on trusted device (Demo)",
         createdAt: daysAgo(1),
       },
       {
+        id: "seed-activity-bank-member-signin",
         userId: bankMember.id,
         action: "SIGN_IN",
         description: "Signed in on trusted device (Demo)",
         createdAt: daysAgo(1),
       },
       {
+        id: "seed-activity-biz-member-signin",
         userId: businessMember.id,
         action: "SIGN_IN",
         description: "Signed in on trusted device (Demo)",
         createdAt: daysAgo(1),
       },
-    ],
-  });
+    ];
+
+  for (const row of activityRows) {
+    await db.activityLog.upsert({
+      where: { id: row.id },
+      create: row,
+      update: {},
+    });
+  }
 
   console.log("\nSeed complete.\n");
   console.log("Demo accounts (sign in with the fixed code below — never a real email):");
