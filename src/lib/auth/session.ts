@@ -11,11 +11,20 @@ export interface SessionPayload {
   role: Role;
 }
 
+/** Thrown when AUTH_JWT_SECRET is missing/too short — distinguished from an
+ * unexpected bug so it surfaces as its own client-facing message and status
+ * (see withErrorHandling) instead of a generic 500, on both sign-in and
+ * create-account, which both sign a session at their final step. */
+export class SessionConfigError extends Error {}
+
 function getSecretKey() {
   const secret = process.env.AUTH_JWT_SECRET;
   if (!secret || secret.length < 32) {
-    throw new Error(
-      "AUTH_JWT_SECRET is not set or too short (need >= 32 chars) — refusing to sign sessions"
+    console.error(
+      "[session] AUTH_JWT_SECRET is not set or too short (need >= 32 chars) — refusing to sign sessions"
+    );
+    throw new SessionConfigError(
+      "Sign-in is temporarily unavailable. Please try again shortly."
     );
   }
   return new TextEncoder().encode(secret);
