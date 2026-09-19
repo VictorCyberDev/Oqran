@@ -14,11 +14,29 @@ only verification channel — phone numbers are collected but never used for OTP
    - `RESEND_API_KEY` / `EMAIL_FROM` — for real OTP email delivery (optional in dev — without it, OTP codes print to the server console; **required** in production, where sending throws by design instead of silently skipping)
    - `PLATFORM_OWNER_EMAIL` — the single account the seed script grants the `PLATFORM_OWNER` role to; that role is never obtainable any other way
    - `NEXT_PUBLIC_MAP_STYLE_URL` — optional, see `.env.example`
-3. `npm run db:push` to create the schema on TiDB. **There is no migration history yet** (`prisma/migrations` doesn't exist) — this repo has only ever used `db push`, a manual sync of the live database to whatever `schema.prisma` currently says. It is not run automatically anywhere (not in `postinstall`, not as part of `next build`, not by Vercel). **Every time `schema.prisma` changes, `db push` must be re-run by hand against every database that change needs to reach** — most importantly the exact `DATABASE_URL` your deployed app uses, not just your local one. Forgetting this is why a deployed app can 500 on a table/column that only exists in the schema file. If you want real migration history instead (recommended before this goes further into production use), ask — it's a deliberate switch (`prisma migrate dev` to generate the initial migration, then `prisma migrate deploy` wired into the Vercel build step) rather than something to do silently alongside other fixes.
+3. Get the schema onto your local database — see "Migrations" below. If this is a database that's never seen OQRAN's schema before, that's just `npx prisma migrate deploy`. If it's an existing local database you previously set up with `db push` (before this repo used migrations), see the one-time baseline step in that section first.
 4. `npm run db:seed` (or `npm run seed`) — see "Seeding" below.
 5. `npm run dev`
 
-**Vercel:** `.env` / `.env.example` only affect your local machine — Vercel never reads them. Every variable above must also be added in the Vercel project's own Settings → Environment Variables (separately per Production/Preview/Development, unless you tick "same value for all environments"), and step 3's `db push` must be run with that *same* `DATABASE_URL` before the deployed app can use any schema change.
+**Vercel:** `.env` / `.env.example` only affect your local machine — Vercel never reads them. Every variable above must also be added in the Vercel project's own Settings → Environment Variables (separately per Production/Preview/Development, unless you tick "same value for all environments").
+
+## Migrations
+
+Schema changes go through real Prisma migration history in `prisma/migrations/`, applied automatically on every deploy — `db push` is no longer part of this project's workflow anywhere.
+
+**Local development, going forward:** edit `prisma/schema.prisma`, then run `npm run db:migrate` (`prisma migrate dev`). It generates a new SQL file under `prisma/migrations/`, applies it to your local database, and regenerates the client. Commit the new migration folder along with the schema change — it's part of the change, not a generated artifact to ignore.
+
+**Production (Vercel):** `npm run build` now runs `prisma migrate deploy && next build`. `migrate deploy` applies any migrations not yet recorded against the environment's `DATABASE_URL` — nothing else runs, no prompts, no schema diffing. So pushing a schema change now reaches production by itself, as part of the same deploy, instead of needing someone to separately remember to run anything by hand. If a migration fails, the build fails — which is the intended behavior: a deploy that would leave code and schema out of sync shouldn't go live.
+
+**One-time baseline required before this reaches production:** the first migration, `prisma/migrations/20260919131417_init/`, represents the schema exactly as it stood under the old `db push` workflow — generated with `prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script`, not `migrate dev`, specifically because there was no empty database to run `migrate dev` against; the schema was already live. Applying that migration's SQL to a database that already has these tables fails immediately (`Error: P3005 — The database schema is not empty`) — verified directly against a throwaway database while building this out. Any database that already matches the current schema needs to be told it's already there instead:
+
+```
+DATABASE_URL="<that database's connection string>" npx prisma migrate resolve --applied 20260919131417_init
+```
+
+(the exact folder name is whatever's under `prisma/migrations/` — `resolve --applied` only writes a bookkeeping row recording the migration as done; it runs no SQL and touches no data).
+
+**This step has not been run against this project's real databases yet** — only rehearsed against a disposable local database while building this out, never against real infrastructure. Both this repo's actual local dev database and its actual TiDB production database already have this schema (from the old `db push` workflow) and each need `migrate resolve --applied` run against them, once, before their first `migrate deploy` — including before this branch's next deploy, since `npm run build` now runs `migrate deploy` unconditionally. Skipping this makes the very next build fail with `Error: P3005 — The database schema is not empty`. A brand new, genuinely empty database skips this entirely and just runs `migrate deploy` normally.
 
 ## Seeding
 
@@ -32,10 +50,11 @@ Because it's a sequence of independent `await`s and not one transaction, a failu
 
 ## Scripts
 
-- `npm run dev` / `build` / `start`
+- `npm run dev` / `build` / `start` — `build` applies pending migrations (`prisma migrate deploy`) before compiling
 - `npm run lint`
 - `npm test` — Vitest, currently covers the ledger hash-chain and Haversine risk-scoring utilities
-- `npm run db:push` / `db:migrate` / `db:studio` / `db:seed`
+- `npm run db:migrate` — create and apply a new migration locally (`prisma migrate dev`)
+- `npm run db:studio` / `db:seed`
 
 ## Structure
 
