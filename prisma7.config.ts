@@ -3,6 +3,30 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+/**
+ * migrate/db push use Prisma's own native schema engine, entirely separate
+ * from the mariadb driver adapter the app uses at runtime (src/lib/db.ts) —
+ * it doesn't understand the generic `ssl=true` that adapter/driver honors,
+ * only its own `sslaccept` param. Without it, the schema engine connects
+ * over plaintext, which TiDB Cloud rejects outright ("Connections using
+ * insecure transport are prohibited"). Only kicks in when the URL already
+ * opts into ssl=true (as .env.example documents for TiDB) — a bare local
+ * DATABASE_URL with no ssl param is left untouched, so plain local dev
+ * databases aren't suddenly forced onto a TLS handshake they don't have.
+ * TiDB serves publicly-trusted certs, so "strict" (verify) is correct here,
+ * not a downgrade from what ssl=true already asks for.
+ */
+function withSslAccept(url: string): string {
+  const parsed = new URL(url);
+  const ssl = parsed.searchParams.get("ssl");
+  if (ssl && ssl !== "false" && !parsed.searchParams.has("sslaccept")) {
+    parsed.searchParams.set("sslaccept", "strict");
+  }
+  return parsed.toString();
+}
+
+const databaseUrl = process.env["DATABASE_URL"];
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
@@ -10,6 +34,6 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: databaseUrl ? withSslAccept(databaseUrl) : databaseUrl,
   },
 });
