@@ -30,6 +30,12 @@ function generateCode(): string {
 
 export class OtpError extends Error {}
 
+/** Distinguishes "the email provider rejected/couldn't send this" from an
+ * unexpected bug — surfaced as its own client-facing message and status
+ * (see withErrorHandling) instead of a generic 500, and logged with the
+ * real underlying cause server-side for whoever's operating the deployment. */
+export class EmailDeliveryError extends Error {}
+
 export async function issueOtp(params: {
   target: string;
   purpose: OtpPurpose;
@@ -46,6 +52,21 @@ export async function issueOtp(params: {
   const isDemo = user?.isDemo ?? false;
 
   const code = isDemo ? DEMO_OTP_CODE : generateCode();
+
+  // Send before persisting: if delivery fails, the user never sees this
+  // code anyway, so don't burn their one-per-45s resend window or a slot
+  // in the 3-per-10-minutes issue cap on a code they'll never receive.
+  if (!isDemo) {
+    try {
+      await sendOtpEmail(target, code);
+    } catch (err) {
+      console.error("[otp] failed to send verification email:", err);
+      throw new EmailDeliveryError(
+        "We couldn't send your verification email right now. Please try again shortly."
+      );
+    }
+  }
+
   const codeHash = await bcrypt.hash(code, bcryptRounds());
 
   await db.otpCode.create({
@@ -58,10 +79,6 @@ export async function issueOtp(params: {
       maxAttempts: MAX_ATTEMPTS,
     },
   });
-
-  if (!isDemo) {
-    await sendOtpEmail(target, code);
-  }
 }
 
 export async function verifyOtp(params: {
