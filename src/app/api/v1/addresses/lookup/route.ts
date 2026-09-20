@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { authenticateApiKey, hasScope } from "@/lib/auth/api-key";
+import { scoreLocationRisk } from "@/lib/geo/risk-score";
+import { daysAgo } from "@/lib/dates";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { withErrorHandling } from "@/lib/api-handler";
 
@@ -43,6 +45,17 @@ export const GET = withErrorHandling(async (req) => {
 
   const address = await db.address.findFirst({ where: { label: { contains: label } } });
 
+  const nearbyIncidents = address
+    ? await db.incident.findMany({
+        where: {
+          latitude: { gte: address.latitude - 0.02, lte: address.latitude + 0.02 },
+          longitude: { gte: address.longitude - 0.02, lte: address.longitude + 0.02 },
+          createdAt: { gte: daysAgo(180) },
+        },
+        select: { latitude: true, longitude: true, severity: true, createdAt: true },
+      })
+    : [];
+
   await db.apiUsage.create({
     data: {
       apiClientId: client.id,
@@ -53,6 +66,16 @@ export const GET = withErrorHandling(async (req) => {
 
   if (!address) return corsError(404, "No match");
 
+  const { score } = scoreLocationRisk(
+    address,
+    nearbyIncidents.map((i) => ({
+      latitude: i.latitude!,
+      longitude: i.longitude!,
+      severity: i.severity,
+      ageDays: (Date.now() - i.createdAt.getTime()) / (24 * 60 * 60 * 1000),
+    }))
+  );
+
   return NextResponse.json(
     {
       ok: true,
@@ -60,8 +83,10 @@ export const GET = withErrorHandling(async (req) => {
         label: address.label,
         confidenceTier: address.confidenceTier,
         severity: address.severity,
+        riskScore: score,
         postcode: address.postcode,
         zoneType: address.zoneType,
+        coordinates: { latitude: address.latitude, longitude: address.longitude },
       },
     },
     { headers: CORS_HEADERS }

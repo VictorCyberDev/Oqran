@@ -12,6 +12,9 @@ export interface ZoneRisk {
   severity: RiskSeverity;
   incidents90d: number;
   trend: Trend;
+  /** Type and age of each incident in range, so callers can render a
+   * plain-language summary without re-running the query. */
+  incidents: { type: string; ageDays: number }[];
 }
 
 export async function computeZoneRisk(zone: {
@@ -50,5 +53,13 @@ export async function computeZoneRisk(zone: {
     zone.radiusKm
   );
 
-  return { severity, incidents90d: within.length, trend: computeTrend(recentCount, priorCount) };
+  return {
+    severity,
+    incidents90d: within.length,
+    trend: computeTrend(recentCount, priorCount),
+    incidents: within.map((i) => ({
+      type: i.type,
+      ageDays: (Date.now() - i.createdAt.getTime()) / (24 * 60 * 60 * 1000),
+    })),
+  };
 }

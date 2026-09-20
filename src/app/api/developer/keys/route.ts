@@ -32,7 +32,7 @@ export const POST = withErrorHandling(async (req) => {
       name,
       apiKeyHash,
       apiKeyPrefix: prefix,
-      scopes: "read:addresses,read:risk",
+      scopes: "read:addresses,read:risk,read:identity",
     },
   });
 

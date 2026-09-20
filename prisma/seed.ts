@@ -307,6 +307,19 @@ async function main() {
     update: { isDemo: true, status: "ACTIVE", organizationId: bizOrg.id, orgRole: "MEMBER" },
   });
 
+  const citizenUser = await db.user.upsert({
+    where: { email: "citizen@oqran-demo.test" },
+    create: {
+      role: "CITIZEN",
+      email: "citizen@oqran-demo.test",
+      authMethod: "EMAIL",
+      status: "ACTIVE",
+      isDemo: true,
+      displayName: "Demo Citizen",
+    },
+    update: { isDemo: true, status: "ACTIVE" },
+  });
+
   await db.user.upsert({
     where: { email: "admin@oqran.ng" },
     create: {
@@ -384,6 +397,113 @@ async function main() {
       latitude: 6.4432,
       longitude: 3.3592,
       radiusKm: 3,
+    },
+    update: {},
+  });
+
+  // Saved places for the citizen demo account, so the dashboard shows a
+  // populated "My places" list rather than an empty state. bourdillon is
+  // stored a band below its current severity so the "risk increased since
+  // you last looked" indicator is visible on the first visit.
+  await db.savedPlace.upsert({
+    where: { userId_addressId: { userId: citizenUser.id, addressId: bourdillon.id } },
+    create: {
+      userId: citizenUser.id,
+      addressId: bourdillon.id,
+      label: "Home",
+      lastSeenSeverity: "LOW",
+    },
+    update: { label: "Home" },
+  });
+
+  await db.savedPlace.upsert({
+    where: { userId_addressId: { userId: citizenUser.id, addressId: awolowo.id } },
+    create: {
+      userId: citizenUser.id,
+      addressId: awolowo.id,
+      label: "Work",
+      lastSeenSeverity: awolowo.severity,
+    },
+    update: { label: "Work" },
+  });
+
+  // A report filed by the citizen, so "My reports" and its impact line
+  // have something real behind them.
+  await db.incident.upsert({
+    where: { referenceCode: "OQ-SEED-0004" },
+    create: {
+      type: "Theft or Robbery",
+      severity: "ELEVATED",
+      description: "Reported by the demo citizen account",
+      addressId: awolowo.id,
+      latitude: awolowo.latitude,
+      longitude: awolowo.longitude,
+      reporterId: citizenUser.id,
+      status: "UNDER_REVIEW",
+      referenceCode: "OQ-SEED-0004",
+      createdAt: daysAgo(6),
+    },
+    update: {},
+  });
+
+  // One case per source, so the Government queue demonstrates
+  // cross-agency visibility immediately instead of starting empty.
+  await db.case.upsert({
+    where: { referenceCode: "OQ-CASE-SEED1" },
+    create: {
+      referenceCode: "OQ-CASE-SEED1",
+      title: bourdillon.label,
+      source: "BANK_ESCALATION",
+      status: "OPEN",
+      severity: "CRITICAL",
+      summary:
+        "Velocity alert with a CBN/NIBSS watchlist match. Five transactions in an hour against an address our records show as residential.",
+      originLabel: bankOrg.name,
+      addressId: bourdillon.id,
+      raisedById: bankUser.id,
+    },
+    update: {},
+  });
+
+  await db.case.upsert({
+    where: { referenceCode: "OQ-CASE-SEED2" },
+    create: {
+      referenceCode: "OQ-CASE-SEED2",
+      title: awolowo.label,
+      source: "CITIZEN_REPORT",
+      status: "UNDER_INVESTIGATION",
+      severity: "ELEVATED",
+      summary: "Opened from a citizen report of repeated theft in the area.",
+      originLabel: "Citizen report",
+      addressId: awolowo.id,
+      raisedById: govUser.id,
+    },
+    update: {},
+  });
+
+  await db.case.upsert({
+    where: { referenceCode: "OQ-CASE-SEED3" },
+    create: {
+      referenceCode: "OQ-CASE-SEED3",
+      title: ademola.label,
+      source: "INVESTIGATOR_FLAG",
+      status: "OPEN",
+      severity: "CRITICAL",
+      summary: "Flagged on the map as an active danger to civilians.",
+      originLabel: "Government investigator",
+      addressId: ademola.id,
+      raisedById: govMember.id,
+    },
+    update: {},
+  });
+
+  await db.caseNote.upsert({
+    where: { id: "seed-case-note-1" },
+    create: {
+      id: "seed-case-note-1",
+      caseId: (await db.case.findUniqueOrThrow({ where: { referenceCode: "OQ-CASE-SEED2" } })).id,
+      authorId: govUser.id,
+      body: "Field team assigned. Awaiting confirmation from the local station.",
     },
     update: {},
   });
@@ -479,6 +599,7 @@ async function main() {
   console.log(`  Bank — MEMBER:       bank-member@oqran-demo.test`);
   console.log(`  Business — LEAD:     business@oqran-demo.test`);
   console.log(`  Business — MEMBER:   business-member@oqran-demo.test`);
+  console.log(`  Citizen:             citizen@oqran-demo.test`);
   console.log(`  Demo OTP code: ${DEMO_OTP_CODE}`);
   console.log(
     "\n  LEAD accounts can manage their team at /bank/team, /gov/team, or /account/team (Business)."
