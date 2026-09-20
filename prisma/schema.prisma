@@ -75,6 +75,9 @@ model User {
   resolvedSignals    FraudSignal[]    @relation("ResolvedBy")
   reviewedApprovals  PendingApproval[] @relation("ReviewedBy")
   zones              Zone[]
+  raisedCases        Case[]           @relation("RaisedCases")
+  caseNotes          CaseNote[]       @relation("CaseNoteAuthor")
+  savedPlaces        SavedPlace[]     @relation("SavedPlaces")
 
   @@index([organizationId])
   @@map("users")
@@ -226,6 +229,8 @@ model Address {
 
   incidents    Incident[]
   fraudSignals FraudSignal[]
+  cases        Case[]
+  savedPlaces  SavedPlace[]
 
   @@index([latitude, longitude])
   @@index([verifiedById])
@@ -254,6 +259,8 @@ model Incident {
   referenceCode String         @unique
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+
+  cases Case[]
 
   @@index([addressId])
   @@index([reporterId])
@@ -295,6 +302,8 @@ model FraudSignal {
   resolvedAt   DateTime?
   resolvedById String?
   resolvedBy   User?             @relation("ResolvedBy", fields: [resolvedById], references: [id])
+
+  cases Case[]
 
   @@index([addressId])
   @@index([slaDeadline])
@@ -385,6 +394,93 @@ model RateLimitBucket {
 
   @@unique([key, windowStart])
   @@map("rate_limit_buckets")
+}
+
+// ---------------------------------------------------------------------------
+// Cross-institution case management
+// ---------------------------------------------------------------------------
+
+/// Which institution a case originated from. The whole point of a case is
+/// that a Government investigator can see work raised by parties who
+/// otherwise have no view of each other, so the origin is first-class
+/// rather than inferred from whatever record it happens to link to.
+enum CaseSource {
+  CITIZEN_REPORT
+  BANK_ESCALATION
+  INVESTIGATOR_FLAG
+}
+
+enum CaseStatus {
+  OPEN
+  UNDER_INVESTIGATION
+  RESOLVED
+}
+
+model Case {
+  id            String       @id @default(cuid())
+  referenceCode String       @unique
+  title         String
+  source        CaseSource
+  status        CaseStatus   @default(OPEN)
+  severity      RiskSeverity
+  /// Context captured at creation — e.g. the escalating bank officer's
+  /// note. Anything added later goes in CaseNote so the trail is ordered.
+  summary       String?      @db.Text
+  /// Originating institution's display name, denormalised so a case still
+  /// reads correctly if that organization is renamed or its user removed.
+  originLabel   String?
+  addressId     String?
+  address       Address?     @relation(fields: [addressId], references: [id])
+  incidentId    String?
+  incident      Incident?    @relation(fields: [incidentId], references: [id])
+  fraudSignalId String?
+  fraudSignal   FraudSignal? @relation(fields: [fraudSignalId], references: [id])
+  raisedById    String?
+  raisedBy      User?        @relation("RaisedCases", fields: [raisedById], references: [id])
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  notes CaseNote[]
+
+  @@index([status, createdAt])
+  @@index([addressId])
+  @@index([incidentId])
+  @@index([fraudSignalId])
+  @@index([raisedById])
+  @@map("cases")
+}
+
+model CaseNote {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id])
+  authorId  String?
+  author    User?    @relation("CaseNoteAuthor", fields: [authorId], references: [id])
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([caseId, createdAt])
+  @@index([authorId])
+  @@map("case_notes")
+}
+
+/// A citizen's pinned address (home, work, a relative's place). Stores the
+/// severity as of the last dashboard view so the next one can say "risk
+/// increased near Home" rather than only ever showing a current value.
+model SavedPlace {
+  id               String       @id @default(cuid())
+  userId           String
+  user             User         @relation("SavedPlaces", fields: [userId], references: [id])
+  addressId        String
+  address          Address      @relation(fields: [addressId], references: [id])
+  label            String
+  lastSeenSeverity RiskSeverity
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([userId, addressId])
+  @@index([userId])
+  @@map("saved_places")
 }
 
 enum ApprovalStatus {

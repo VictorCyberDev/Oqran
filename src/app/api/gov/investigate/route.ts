@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createHash } from "crypto";
 import { db } from "@/lib/db";
+import { simulateNinAddressMatch } from "@/lib/simulation";
 import { getSession } from "@/lib/auth/session";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity";
@@ -23,18 +23,6 @@ const bodySchema = z
 const EXISTING_ADDRESS_MATCH_RADIUS_KM = 0.05;
 const RISK_SEARCH_RADIUS_KM = 2;
 const RECENT_INCIDENT_WINDOW_DAYS = 180;
-
-/**
- * Deterministic mock NIN↔address cross-reference — there is no real NIMC
- * access. Same NIN + same address always produces the same result (hashed,
- * never random), so it behaves consistently across repeat checks rather
- * than being a coin flip per click. Never presented as a real lookup
- * without the "Simulated — pending NIMC API access" label alongside it.
- */
-function simulateNinMatch(nin: string, addressId: string): boolean {
-  const hash = createHash("sha256").update(`${nin}:${addressId}`).digest("hex");
-  return parseInt(hash.slice(0, 8), 16) % 2 === 0;
-}
 
 export const POST = withErrorHandling(async (req) => {
   const session = await getSession();
@@ -107,7 +95,7 @@ export const POST = withErrorHandling(async (req) => {
   };
 
   if (body.nin) {
-    const matched = simulateNinMatch(body.nin, address.id);
+    const matched = simulateNinAddressMatch(body.nin, address.id);
     ninResult = { matched };
     if (matched) {
       data.confidenceTier = "NIMC_CERTIFIED";

@@ -7,6 +7,7 @@ import { Badge, RISK_BADGE_TONE } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/Sheet";
+import { SimulatedTag, SimulatedLabel } from "@/components/ui/SimulatedTag";
 
 const TIER_LABEL: Record<string, string> = {
   NIMC_CERTIFIED: "NIMC-Certified",
@@ -264,9 +265,7 @@ function InvestigationPanel({
           <div className="h-px bg-border-subtle" />
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-2xs font-semibold uppercase tracking-wide text-text-primary/45">
-              NIN cross-reference — Simulated, pending NIMC API access
-            </label>
+            <SimulatedLabel detail="pending NIMC API access">NIN cross-reference</SimulatedLabel>
             <div className="flex gap-2">
               <Input
                 value={investigation.ninInput}
@@ -287,7 +286,7 @@ function InvestigationPanel({
                 {investigation.ninResult.matched
                   ? "Matched — NIN-linked to this address"
                   : "No match found"}{" "}
-                <span className="font-medium text-text-primary/50">(Simulated — pending NIMC API access)</span>
+                <SimulatedTag detail="pending NIMC API access" />
               </p>
             )}
           </div>
