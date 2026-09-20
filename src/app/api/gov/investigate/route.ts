@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth/session";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity";
 import { haversineDistanceKm, scoreLocationRisk } from "@/lib/geo/risk-score";
+import { resolvePlace } from "@/lib/geo/resolve-place";
 import { jsonError } from "@/lib/http";
 import { withErrorHandling } from "@/lib/api-handler";
 
@@ -32,37 +33,51 @@ export const POST = withErrorHandling(async (req) => {
 
   const body = bodySchema.parse(await req.json());
 
-  let address = body.query
-    ? await db.address.findFirst({ where: { label: { contains: body.query } } })
+  // A text search resolves through OQRAN's own records first and OSM
+  // geocoding second, so a street we hold nothing on still lands on the
+  // map instead of returning an error that reads as a broken search.
+  const resolved = body.query ? await resolvePlace(body.query) : null;
+
+  let address = resolved?.addressId
+    ? await db.address.findUnique({ where: { id: resolved.addressId } })
     : null;
 
-  if (!address && body.latitude !== undefined && body.longitude !== undefined) {
+  const lat = body.latitude ?? resolved?.latitude;
+  const lon = body.longitude ?? resolved?.longitude;
+
+  if (!address && lat !== undefined && lon !== undefined) {
     const candidates = await db.address.findMany({
       where: {
-        latitude: { gte: body.latitude - 0.01, lte: body.latitude + 0.01 },
-        longitude: { gte: body.longitude - 0.01, lte: body.longitude + 0.01 },
+        latitude: { gte: lat - 0.01, lte: lat + 0.01 },
+        longitude: { gte: lon - 0.01, lte: lon + 0.01 },
       },
     });
     const nearest = candidates
-      .map((a) => ({ a, d: haversineDistanceKm(body.latitude!, body.longitude!, a.latitude, a.longitude) }))
+      .map((a) => ({ a, d: haversineDistanceKm(lat, lon, a.latitude, a.longitude) }))
       .sort((x, y) => x.d - y.d)[0];
     if (nearest && nearest.d <= EXISTING_ADDRESS_MATCH_RADIUS_KM) address = nearest.a;
   }
 
+  /** Whether OQRAN already held this place before this lookup. Drives a
+   * distinct pin and panel state for "nothing on file here". */
+  const hadRecord = address !== null;
+
   if (!address) {
-    if (body.latitude === undefined || body.longitude === undefined) {
+    if (lat === undefined || lon === undefined) {
       return NextResponse.json({
         ok: false,
-        error: "No record found for that address. Click a point on the map instead.",
+        error: "Couldn't locate that place. Try a fuller address, or click a point on the map.",
       });
     }
     address = await db.address.create({
       data: {
-        label: body.query ?? "Investigator-marked location",
-        latitude: body.latitude,
-        longitude: body.longitude,
+        label: resolved?.label ?? body.query ?? "Investigator-marked location",
+        latitude: lat,
+        longitude: lon,
         confidenceTier: "CROWD_REPORTED",
-        source: "Marked directly on the map by a government investigator",
+        source: body.query
+          ? "Geocoded from an investigator search — no prior OQRAN record"
+          : "Marked directly on the map by a government investigator",
       },
     });
   }
@@ -113,6 +128,7 @@ export const POST = withErrorHandling(async (req) => {
 
   return NextResponse.json({
     ok: true,
+    hadRecord,
     address: {
       id: address.id,
       label: address.label,

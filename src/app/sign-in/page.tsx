@@ -6,6 +6,30 @@ import Link from "next/link";
 import { AuthShell, AuthHeading, FormError } from "../(auth)/AuthShell";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { IconCircle } from "@/components/ui/IconCircle";
+
+function LockIcon() {
+  return (
+    <svg width={26} height={26} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x={4} y={10} width={16} height={10} rx={2.5} stroke="currentColor" strokeWidth={2} />
+      <path d="M8 10V7.5a4 4 0 118 0V10" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ShieldIcon() {
+  return (
+    <svg width={26} height={26} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3l7 3v5.5c0 4.2-2.9 7.9-7 9-4.1-1.1-7-4.8-7-9V6l7-3z"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinejoin="round"
+      />
+      <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 type Step =
   | { name: "credential" }
@@ -28,6 +52,7 @@ export default function SignInPage() {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [pin, setPin] = useState("");
+  const [pinConfirm, setPinConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -85,8 +110,12 @@ export default function SignInPage() {
   async function submitTrustDevice() {
     if (step.name !== "trust-device") return;
     setBusy(true);
-    await postJson("/api/auth/trust-device", { pin, label: "This browser" });
+    setError(null);
+    // Previously the response was discarded, so a failed request still
+    // navigated on as though the device had been trusted.
+    const res = await postJson("/api/auth/trust-device", { pin, label: "This browser" });
     setBusy(false);
+    if (!res.ok) return setError(res.error ?? "Couldn't secure this device. Try again.");
     goHome(step.role);
   }
 
@@ -140,7 +169,15 @@ export default function SignInPage() {
 
       {step.name === "unlock" && (
         <>
-          <AuthHeading title="Welcome back" subtitle="This device is trusted — enter your PIN to continue" />
+          <div className="mb-5 flex justify-center">
+            <IconCircle tone="low">
+              <LockIcon />
+            </IconCircle>
+          </div>
+          <AuthHeading
+            title="Welcome back"
+            subtitle="This device is trusted — enter your PIN to continue"
+          />
           <FormError message={error} />
           <div className="flex flex-col gap-4">
             <Input
@@ -149,10 +186,11 @@ export default function SignInPage() {
               placeholder="PIN"
               inputMode="numeric"
               type="password"
+              autoComplete="current-password"
               className="text-center text-lg font-bold tracking-[0.4em]"
             />
             <Button fullWidth disabled={busy || pin.length < 4} onClick={submitUnlock}>
-              Unlock
+              {busy ? "Unlocking…" : "Unlock"}
             </Button>
           </div>
         </>
@@ -160,7 +198,16 @@ export default function SignInPage() {
 
       {step.name === "trust-device" && (
         <>
-          <AuthHeading title="Secure this device" subtitle="Set a PIN to skip codes next time you sign in here" />
+          <div className="mb-5 flex justify-center">
+            <IconCircle tone="low">
+              <ShieldIcon />
+            </IconCircle>
+          </div>
+          <AuthHeading
+            title="Secure this device"
+            subtitle="Set a PIN to skip codes next time you sign in here"
+          />
+          <FormError message={error} />
           <div className="flex flex-col gap-4">
             <Input
               value={pin}
@@ -168,10 +215,32 @@ export default function SignInPage() {
               placeholder="Choose a 4-6 digit PIN"
               inputMode="numeric"
               type="password"
+              autoComplete="new-password"
               className="text-center text-lg font-bold tracking-[0.4em]"
             />
-            <Button fullWidth disabled={busy || pin.length < 4} onClick={submitTrustDevice}>
-              Trust this device
+            {/* Confirmed before it's stored — a mistyped PIN would
+                otherwise lock this device out of the fast path with no
+                way to discover the typo. */}
+            <Input
+              value={pinConfirm}
+              onChange={(e) => setPinConfirm(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="Confirm your PIN"
+              inputMode="numeric"
+              type="password"
+              autoComplete="new-password"
+              className="text-center text-lg font-bold tracking-[0.4em]"
+            />
+            {pinConfirm.length > 0 && pinConfirm !== pin && (
+              <p className="-mt-1 text-center text-xs font-semibold text-danger">
+                Those PINs don&rsquo;t match.
+              </p>
+            )}
+            <Button
+              fullWidth
+              disabled={busy || pin.length < 4 || pin !== pinConfirm}
+              onClick={submitTrustDevice}
+            >
+              {busy ? "Saving…" : "Trust this device"}
             </Button>
             <button
               type="button"

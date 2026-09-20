@@ -55,24 +55,23 @@ export default async function BusinessHome() {
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      {/* Team management is LEAD-only, matching Bank and Government. An
+          earlier version showed members a "My team" link that bounced
+          them straight back here off the route guard. */}
+      {isLead && (
         <Link
           href="/account/team"
-          className={
-            isLead
-              ? "rounded-full bg-brand px-3.5 py-2 text-xs font-semibold text-white"
-              : "rounded-full bg-bg-surface-sunken px-3.5 py-2 text-xs font-semibold text-text-primary/70"
-          }
+          className="flex items-center justify-between rounded-xl border border-border-subtle bg-bg-surface px-4 py-3"
         >
-          {isLead ? "Manage my team" : "My team"}
+          <div>
+            <p className="text-sm font-bold text-text-primary">Manage my team</p>
+            <p className="text-xs font-medium text-text-primary/55">
+              Add or remove people on your business account
+            </p>
+          </div>
+          <span className="shrink-0 text-xs font-semibold text-brand">Open →</span>
         </Link>
-        <Link
-          href="/citizen/street"
-          className="rounded-full bg-bg-surface-sunken px-3.5 py-2 text-xs font-semibold text-text-primary/70"
-        >
-          Check any address
-        </Link>
-      </div>
+      )}
 
       <div className="grid grid-cols-3 gap-2.5">
         <StatTile label="Zones" value={zones.length} />

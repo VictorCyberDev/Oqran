@@ -83,15 +83,25 @@ export default async function BankDashboardPage({
         >
           My activity
         </Link>
-        {isLead && (
-          <Link
-            href="/bank/team"
-            className="rounded-full bg-brand px-3.5 py-2 text-xs font-semibold text-white"
-          >
-            Manage my team
-          </Link>
-        )}
       </div>
+
+      {/* A pill in the chip row above read as a filter rather than
+          navigation, so leads couldn't find their team screen. Given its
+          own row it matches the Government dashboard's case banner. */}
+      {isLead && (
+        <Link
+          href="/bank/team"
+          className="flex items-center justify-between rounded-xl border border-border-subtle bg-bg-surface px-4 py-3"
+        >
+          <div>
+            <p className="text-sm font-bold text-text-primary">Manage my team</p>
+            <p className="text-xs font-medium text-text-primary/55">
+              Invite or remove compliance staff in your organization
+            </p>
+          </div>
+          <span className="shrink-0 text-xs font-semibold text-brand">Open →</span>
+        </Link>
+      )}
 
       <div className="grid grid-cols-2 gap-2.5">
         <StatTile label="Open signals" value={open.length} caption="Awaiting review" />

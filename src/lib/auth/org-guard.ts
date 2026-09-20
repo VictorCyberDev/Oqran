@@ -2,6 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { roleHomePath } from "@/lib/auth/roles";
+import { canManageOrg } from "@/lib/auth/org-permissions";
 import { db } from "@/lib/db";
 import type { Role } from "@/generated/prisma/enums";
 
@@ -15,8 +16,7 @@ export async function getOrgLead(allowedRoles: Role[]) {
   if (!session || !allowedRoles.includes(session.role)) return null;
 
   const user = await db.user.findUnique({ where: { id: session.userId } });
-  if (!user || user.status !== "ACTIVE") return null;
-  if (!user.organizationId || user.orgRole !== "LEAD") return null;
+  if (!canManageOrg(user, allowedRoles)) return null;
 
   return user;
 }

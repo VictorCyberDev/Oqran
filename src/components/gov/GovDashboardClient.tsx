@@ -26,6 +26,9 @@ interface InvestigatedAddress {
 
 interface Investigation {
   pin?: { latitude: number; longitude: number };
+  /** False when OQRAN held nothing here before this lookup — a valid
+   * result that gets its own pin colour and panel note. */
+  hadRecord?: boolean;
   status: "loading" | "ready" | "error";
   error?: string;
   address?: InvestigatedAddress;
@@ -82,6 +85,7 @@ export function GovDashboardClient({
             ...prev,
             status: "ready",
             address: res.address,
+            hadRecord: res.hadRecord,
             pin: { latitude: res.address.latitude, longitude: res.address.longitude },
           }
         : prev
@@ -187,6 +191,7 @@ export function GovDashboardClient({
           }}
           onMapClick={(coords) => runInvestigate(coords)}
           pendingPin={investigation?.pin ?? null}
+          pendingPinHasRecord={investigation?.hadRecord ?? true}
         />
 
         <div className="pointer-events-none absolute inset-x-5 top-3 hidden md:flex md:justify-end">
@@ -298,6 +303,13 @@ function InvestigationPanel({
               Close
             </button>
           </div>
+
+          {investigation.hadRecord === false && (
+            <p className="rounded-lg bg-bg-surface-sunken px-3 py-2 text-xs font-semibold leading-relaxed text-text-primary/70">
+              No prior OQRAN record here — located by map search. Anything you flag or note
+              starts this location&rsquo;s history.
+            </p>
+          )}
 
           <div className="flex items-center gap-2">
             <Badge tone="brand">{TIER_LABEL[investigation.address.confidenceTier] ?? investigation.address.confidenceTier}</Badge>

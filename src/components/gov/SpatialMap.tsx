@@ -48,6 +48,7 @@ export function SpatialMap({
   onSelect,
   onMapClick,
   pendingPin,
+  pendingPinHasRecord = true,
 }: {
   incidents: MapIncident[];
   filter: string;
@@ -60,6 +61,9 @@ export function SpatialMap({
    * investigation panel is open — not a persisted Incident, so it isn't
    * part of `incidents`. Passing new coordinates also flies the map there. */
   pendingPin?: { latitude: number; longitude: number } | null;
+  /** False draws the pin hollow, marking a place OQRAN holds no record
+   * for — visibly different from a pin over somewhere with history. */
+  pendingPinHasRecord?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -116,14 +120,18 @@ export function SpatialMap({
       el.style.height = "18px";
       el.style.borderRadius = "50% 50% 50% 0";
       el.style.transform = "rotate(-45deg)";
-      el.style.background = "var(--color-brand)";
-      el.style.border = "2px solid var(--color-map-surface)";
+      // Solid brand pin where OQRAN has a record; hollow where it doesn't,
+      // so "nothing on file here" is legible at a glance on the map.
+      el.style.background = pendingPinHasRecord ? "var(--color-brand)" : "transparent";
+      el.style.border = pendingPinHasRecord
+        ? "2px solid var(--color-map-surface)"
+        : "2px dashed var(--color-brand)";
       pendingMarkerRef.current = new Marker({ element: el, anchor: "bottom" })
         .setLngLat([pendingPin.longitude, pendingPin.latitude])
         .addTo(map);
       map.flyTo({ center: [pendingPin.longitude, pendingPin.latitude], zoom: 15 });
     }
-  }, [pendingPin, ready]);
+  }, [pendingPin, pendingPinHasRecord, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
