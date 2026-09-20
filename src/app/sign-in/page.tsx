@@ -72,19 +72,9 @@ export default function SignInPage() {
       setBusy(false);
       return setError(res.error ?? "Something went wrong.");
     }
-    if (res.mode === "unlock") {
-      setBusy(false);
-      setStep({ name: "unlock", deviceId: res.deviceId });
-      return;
-    }
-    // TEMPORARY (hackathon deadline): OTP is disabled server-side (see
-    // src/lib/auth/otp.ts), so skip the code-entry screen entirely and
-    // verify immediately with a placeholder — restore `setStep({ name:
-    // "otp", email })` here once OTP is re-enabled.
-    const verifyRes = await postJson("/api/auth/sign-in/verify-otp", { email, code: "000000" });
     setBusy(false);
-    if (!verifyRes.ok) return setError(verifyRes.error ?? "Something went wrong.");
-    setStep({ name: "trust-device", role: verifyRes.role });
+    if (res.mode === "unlock") return setStep({ name: "unlock", deviceId: res.deviceId });
+    setStep({ name: "otp", email });
   }
 
   async function submitOtp() {

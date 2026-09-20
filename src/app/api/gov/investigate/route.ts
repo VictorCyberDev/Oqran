@@ -6,7 +6,7 @@ import { getSession } from "@/lib/auth/session";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { logActivity } from "@/lib/activity";
 import { haversineDistanceKm, scoreLocationRisk } from "@/lib/geo/risk-score";
-import { resolvePlace } from "@/lib/geo/resolve-place";
+import { resolvePlace, resolveFailureMessage } from "@/lib/geo/resolve-place";
 import { jsonError } from "@/lib/http";
 import { withErrorHandling } from "@/lib/api-handler";
 
@@ -36,7 +36,12 @@ export const POST = withErrorHandling(async (req) => {
   // A text search resolves through OQRAN's own records first and OSM
   // geocoding second, so a street we hold nothing on still lands on the
   // map instead of returning an error that reads as a broken search.
-  const resolved = body.query ? await resolvePlace(body.query) : null;
+  const outcome = body.query ? await resolvePlace(body.query) : null;
+  const resolved = outcome?.ok ? outcome.place : null;
+
+  if (outcome && !outcome.ok && body.latitude === undefined) {
+    return NextResponse.json({ ok: false, error: resolveFailureMessage(outcome.reason) });
+  }
 
   let address = resolved?.addressId
     ? await db.address.findUnique({ where: { id: resolved.addressId } })

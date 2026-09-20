@@ -18,17 +18,21 @@ export interface MapIncident {
 }
 
 /**
- * OpenFreeMap's "Liberty" style — a free, no-API-key OSM-Bright-style vector
- * style with real building footprints, road names, and POIs, not just an
- * abstract shape layer. Swap via NEXT_PUBLIC_MAP_STYLE_URL for a different
- * provider if needed. Styled toward the dark investigator palette with a
- * CSS filter on the canvas, same as the raster style this replaces.
+ * CARTO's Dark Matter — a free, no-API-key OSM vector style that is dark
+ * by design, with building footprints, road names and POI labels.
+ *
+ * This replaces a light vector style pushed through an invert/hue-rotate
+ * CSS filter. That trick was fine on the old minimal raster basemap, but
+ * on a dense label-heavy style it inverted the label text and casing too,
+ * producing clashing colours and unreadable type. A natively dark style
+ * needs no filter at all, so the filter below now applies *only* to the
+ * raster fallback. Override with NEXT_PUBLIC_MAP_STYLE_URL if needed.
  */
-const VECTOR_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+const DARK_VECTOR_STYLE_URL = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 
 /** Fallback if the vector style fails to load for any reason (e.g. the
  * provider is unreachable) — degrades to plain OSM raster tiles rather than
- * leaving the map blank. */
+ * leaving the map blank. This one still needs the dark filter. */
 const FALLBACK_RASTER_STYLE: StyleSpecification = {
   version: 8,
   sources: {
@@ -70,26 +74,51 @@ export function SpatialMap({
   const markersRef = useRef<Marker[]>([]);
   const pendingMarkerRef = useRef<Marker | null>(null);
   const [ready, setReady] = useState(false);
+  /** True once we've dropped to raster. Drives both the dark CSS filter
+   * and the on-map notice, so which basemap is actually live is visible
+   * rather than something you have to infer from how the map looks. */
+  const [onFallbackBasemap, setOnFallbackBasemap] = useState(false);
   const usedFallback = useRef(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
     const map = new MapLibreMap({
       container: containerRef.current,
-      style: process.env.NEXT_PUBLIC_MAP_STYLE_URL || VECTOR_STYLE_URL,
+      style: process.env.NEXT_PUBLIC_MAP_STYLE_URL || DARK_VECTOR_STYLE_URL,
       center: [8.6753, 9.082], // Nigeria centroid
       zoom: 5.2,
       attributionControl: false,
     });
     map.addControl(new NavigationControl({ showCompass: false }), "bottom-right");
-    map.on("load", () => setReady(true));
-    map.on("error", () => {
+
+    function fallBack(why: string) {
       if (usedFallback.current) return;
       usedFallback.current = true;
+      console.warn(`[map] vector basemap unavailable (${why}) — using raster fallback`);
+      setOnFallbackBasemap(true);
       map.setStyle(FALLBACK_RASTER_STYLE);
+    }
+
+    // A single failed tile or missing glyph also fires "error", so an
+    // error alone is too eager a trigger — it would throw away a working
+    // vector style over one hiccup. Only give up if the style genuinely
+    // hasn't loaded in time.
+    const timer = setTimeout(() => {
+      if (!map.isStyleLoaded()) fallBack("style did not load within 6s");
+    }, 6000);
+
+    map.on("load", () => {
+      clearTimeout(timer);
+      setReady(true);
     });
+    // setStyle() replaces the style after "load" may already have fired
+    // (or instead of it, if the vector style never loaded at all), so the
+    // marker pass needs a second trigger or the map comes back empty.
+    map.on("styledata", () => setReady(true));
+
     mapRef.current = map;
     return () => {
+      clearTimeout(timer);
       map.remove();
       mapRef.current = null;
     };
@@ -173,11 +202,20 @@ export function SpatialMap({
   }, [incidents, filter, ready, onSelect]);
 
   return (
-    <div ref={containerRef} className="gov-spatial-map h-full w-full">
-      {/* Scoped to the WebGL canvas only — filtering the container would
-          also invert the severity-colored marker DOM elements above it. */}
+    <div
+      ref={containerRef}
+      className={`gov-spatial-map h-full w-full${onFallbackBasemap ? " gov-spatial-map--raster" : ""}`}
+    >
+      {onFallbackBasemap && (
+        <div className="pointer-events-none absolute bottom-2 left-2 z-10 rounded-md bg-map-panel/92 px-2.5 py-1.5 text-2xs font-semibold text-map-text backdrop-blur-sm">
+          Basemap: raster fallback — the detailed vector style didn&rsquo;t load
+        </div>
+      )}
+      {/* The invert filter now applies only to the raster fallback. The
+          primary style is dark natively, and inverting it would wreck the
+          label colours — which is exactly what the previous version did. */}
       <style>{`
-        .gov-spatial-map .maplibregl-canvas {
+        .gov-spatial-map--raster .maplibregl-canvas {
           filter: invert(1) hue-rotate(180deg) saturate(0.6) brightness(0.9);
         }
         .gov-spatial-map .maplibregl-ctrl-attrib { display: none; }

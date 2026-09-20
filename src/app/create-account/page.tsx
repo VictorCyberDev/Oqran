@@ -82,26 +82,9 @@ export default function CreateAccountPage() {
     setBusy(true);
     setError(null);
     const res = await postJson("/api/auth/create-account/continue", { email, role: step.role });
-    if (!res.ok) {
-      setBusy(false);
-      return setError(res.error ?? "Something went wrong.");
-    }
-    // TEMPORARY (hackathon deadline): OTP is disabled server-side (see
-    // src/lib/auth/otp.ts), so skip the code-entry screen entirely and
-    // verify immediately with a placeholder — restore `setStep({ name:
-    // "otp", role: step.role, email, phone, businessOrg: step.businessOrg })`
-    // here once OTP is re-enabled.
-    const verifyRes = await postJson("/api/auth/create-account/verify-otp", {
-      email,
-      code: "000000",
-      role: step.role,
-      phone: phone || undefined,
-      businessOrg: step.businessOrg,
-    });
     setBusy(false);
-    if (!verifyRes.ok) return setError(verifyRes.error ?? "Something went wrong.");
-    if (step.role === "DEVELOPER") setStep({ name: "created", role: step.role });
-    else goHome(verifyRes.role);
+    if (!res.ok) return setError(res.error ?? "Something went wrong.");
+    setStep({ name: "otp", role: step.role, email, phone, businessOrg: step.businessOrg });
   }
 
   async function submitOtp() {

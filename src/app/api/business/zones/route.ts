@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import { enforceRateLimit } from "@/lib/rate-limit";
-import { resolvePlace } from "@/lib/geo/resolve-place";
+import { resolvePlace, resolveFailureMessage } from "@/lib/geo/resolve-place";
 import { jsonError } from "@/lib/http";
 import { withErrorHandling } from "@/lib/api-handler";
 
@@ -38,15 +38,12 @@ export const POST = withErrorHandling(async (req) => {
   let longitude = body.longitude;
 
   if ((latitude === undefined || longitude === undefined) && body.address) {
-    const resolved = await resolvePlace(body.address);
-    if (!resolved) {
-      return NextResponse.json({
-        ok: false,
-        error: "Couldn't locate that address. Try a fuller address, or use your location.",
-      });
+    const outcome = await resolvePlace(body.address);
+    if (!outcome.ok) {
+      return NextResponse.json({ ok: false, error: resolveFailureMessage(outcome.reason) });
     }
-    latitude = resolved.latitude;
-    longitude = resolved.longitude;
+    latitude = outcome.place.latitude;
+    longitude = outcome.place.longitude;
   }
 
   if (latitude === undefined || longitude === undefined) {

@@ -19,21 +19,6 @@ const RESEND_COOLDOWN_MS = 45 * 1000;
  * that this code always verifies and no email is actually sent. */
 const DEMO_OTP_CODE = "000000";
 
-/**
- * TEMPORARY — HACKATHON DEADLINE, EXPLICIT USER REQUEST (not gated behind an
- * env var or NODE_ENV, on purpose, so it's in effect on the live deployed
- * app immediately): while true, issueOtp sends no email and persists no
- * code, and verifyOtp accepts any input as valid. This is a full
- * authentication bypass for every account and every role — anyone who
- * knows or guesses any account's email can sign in as that account while
- * this is true, and self-service create-account needs no proof of email
- * ownership at all. Restore by setting this back to false (or deleting it
- * and the two `if (OTP_DISABLED)` lines below) immediately after the
- * hackathon submission — the rest of this file is untouched and does
- * exactly what it did before.
- */
-const OTP_DISABLED = true;
-
 function bcryptRounds() {
   return Number(process.env.AUTH_BCRYPT_ROUNDS ?? "12");
 }
@@ -56,8 +41,6 @@ export async function issueOtp(params: {
   purpose: OtpPurpose;
   userId?: string;
 }): Promise<void> {
-  if (OTP_DISABLED) return;
-
   const { target, purpose, userId } = params;
 
   await enforceRateLimit(`otp:resend:${target}`, 1, RESEND_COOLDOWN_MS);
@@ -103,8 +86,6 @@ export async function verifyOtp(params: {
   purpose: OtpPurpose;
   code: string;
 }): Promise<{ ok: true; otpId: string } | { ok: false; reason: string }> {
-  if (OTP_DISABLED) return { ok: true, otpId: "bypass" };
-
   const { target, purpose, code } = params;
 
   await enforceRateLimit(`otp:verify:${target}`, 10, 10 * 60 * 1000);
