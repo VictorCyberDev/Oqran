@@ -25,7 +25,28 @@ function withSslAccept(url: string): string {
   return parsed.toString();
 }
 
+/** Strips credentials so this is safe to print in shared build logs. */
+function redact(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.username) parsed.username = "***";
+    if (parsed.password) parsed.password = "***";
+    return parsed.toString();
+  } catch {
+    return "<could not be parsed as a URL>";
+  }
+}
+
 const databaseUrl = process.env["DATABASE_URL"];
+const resolvedUrl = databaseUrl ? withSslAccept(databaseUrl) : databaseUrl;
+
+// TEMPORARY — remove once the TiDB "insecure transport" build failure is
+// confirmed fixed. Only prints redacted URLs (credentials stripped), so it's
+// safe in shared Vercel build logs. This is here specifically to see, on a
+// real Vercel build, whether the sslaccept rewrite below is actually
+// receiving and transforming the URL we expect it to.
+console.log("[prisma7.config debug] DATABASE_URL received:", databaseUrl ? redact(databaseUrl) : "(not set)");
+console.log("[prisma7.config debug] DATABASE_URL after sslaccept rewrite:", resolvedUrl ? redact(resolvedUrl) : "(not set)");
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -34,6 +55,6 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    url: databaseUrl ? withSslAccept(databaseUrl) : databaseUrl,
+    url: resolvedUrl,
   },
 });
