@@ -40,12 +40,39 @@ export const POST = withErrorHandling(async (req) => {
     },
   });
 
+  // A flagged danger zone is work someone has to follow up, so it opens as
+  // a case in the same list bank escalations and citizen reports land in —
+  // otherwise the three sources live in three different places.
+  const caseRecord = await db.case.create({
+    data: {
+      referenceCode: `OQ-CASE-${Math.floor(1000 + Math.random() * 9000)}`,
+      title: address.label,
+      source: "INVESTIGATOR_FLAG",
+      status: "OPEN",
+      severity: "CRITICAL",
+      summary: "Flagged on the map as an active danger to civilians.",
+      originLabel: "Government investigator",
+      addressId: address.id,
+      incidentId: incident.id,
+      raisedById: session.userId,
+    },
+  });
+
   await appendLedgerEntry({
     kind: "INCIDENT_REPORTED",
     incidentId: incident.id,
     referenceCode: incident.referenceCode,
     reporterId: session.userId,
     severity: incident.severity,
+  });
+
+  await appendLedgerEntry({
+    kind: "CASE_RAISED",
+    caseId: caseRecord.id,
+    referenceCode: caseRecord.referenceCode,
+    source: "INVESTIGATOR_FLAG",
+    raisedById: session.userId,
+    severity: caseRecord.severity,
   });
 
   await logActivity({

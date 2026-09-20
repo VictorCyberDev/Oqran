@@ -6,7 +6,10 @@ import { BackHeader } from "@/components/ui/BackHeader";
 import { Badge, RISK_BADGE_TONE } from "@/components/ui/Badge";
 import { SlaTimer } from "@/components/bank/SlaTimer";
 import { EscalateButton } from "@/components/bank/EscalateButton";
+import { EscalateToGovButton } from "@/components/bank/EscalateToGovButton";
 import { MapOverlayPanel } from "@/components/ui/MapOverlayPanel";
+import { SimulatedTag } from "@/components/ui/SimulatedTag";
+import { simulateAddressActivity } from "@/lib/simulation";
 
 export default async function SignalDetailPage({
   params,
@@ -16,6 +19,8 @@ export default async function SignalDetailPage({
   const { id } = await params;
   const signal = await db.fraudSignal.findUnique({ where: { id }, include: { address: true } });
   if (!signal) notFound();
+
+  const activity = signal.address ? simulateAddressActivity(signal.address.id) : null;
 
   const meta = [
     { k: "First seen", v: signal.flaggedAt.toLocaleString("en-NG") },
@@ -65,6 +70,22 @@ export default async function SignalDetailPage({
         ))}
       </div>
 
+      {signal.address && (
+        <div className="flex flex-col gap-1.5 rounded-2xl border border-border-subtle bg-bg-surface p-4">
+          <span className="text-2xs font-semibold uppercase tracking-wide text-text-primary/45">
+            Cross-institution activity
+          </span>
+          <p className="text-sm font-medium leading-relaxed text-text-primary/70">
+            {activity!.verificationAttempts24h} verification attempts on this address in the last 24
+            hours, from {activity!.distinctInstitutions7d}{" "}
+            {activity!.distinctInstitutions7d === 1 ? "institution" : "institutions"} this week.
+          </p>
+          <p className="text-2xs">
+            <SimulatedTag detail="pending inter-bank data-sharing agreements" />
+          </p>
+        </div>
+      )}
+
       <a
         href={`/api/bank/signals/${signal.id}/export`}
         className="rounded-lg bg-brand px-4 py-3.5 text-center text-sm font-bold text-white"
@@ -72,6 +93,7 @@ export default async function SignalDetailPage({
         Export Report
       </a>
       <EscalateButton signalId={signal.id} resolved={!!signal.resolvedAt} />
+      <EscalateToGovButton target={{ kind: "signal", signalId: signal.id }} />
     </AppShell>
   );
 }

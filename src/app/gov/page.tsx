@@ -10,6 +10,11 @@ export default async function GovSpatialGridPage() {
     : null;
   const isLead = viewer?.orgRole === "LEAD" && !!viewer.organizationId;
 
+  const [openCases, bankCases] = await Promise.all([
+    db.case.count({ where: { status: { not: "RESOLVED" } } }),
+    db.case.count({ where: { status: { not: "RESOLVED" }, source: "BANK_ESCALATION" } }),
+  ]);
+
   const incidents = await db.incident.findMany({
     where: {
       latitude: { not: null },
@@ -33,6 +38,8 @@ export default async function GovSpatialGridPage() {
   return (
     <GovDashboardClient
       isLead={isLead}
+      openCases={openCases}
+      bankCases={bankCases}
       incidents={incidents.map((i) => ({
         ...i,
         latitude: i.latitude!,

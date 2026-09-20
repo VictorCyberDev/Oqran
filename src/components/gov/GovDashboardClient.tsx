@@ -48,9 +48,13 @@ async function postJson(url: string, body: unknown) {
 export function GovDashboardClient({
   incidents: initialIncidents,
   isLead,
+  openCases,
+  bankCases,
 }: {
   incidents: MapIncident[];
   isLead: boolean;
+  openCases: number;
+  bankCases: number;
 }) {
   const [incidents, setIncidents] = useState(initialIncidents);
   const [query, setQuery] = useState("");
@@ -141,6 +145,23 @@ export function GovDashboardClient({
         </div>
       </header>
 
+      <Link
+        href="/gov/cases"
+        className="mx-5 mb-3 flex items-center justify-between rounded-xl border border-border-subtle bg-bg-surface px-4 py-3"
+      >
+        <div>
+          <p className="text-sm font-bold text-text-primary">
+            {openCases} open {openCases === 1 ? "case" : "cases"}
+          </p>
+          <p className="text-xs font-medium text-text-primary/55">
+            {bankCases > 0
+              ? `${bankCases} escalated from banks · citizen reports and flags included`
+              : "Bank escalations, citizen reports and investigator flags"}
+          </p>
+        </div>
+        <span className="shrink-0 text-xs font-semibold text-brand">Open queue →</span>
+      </Link>
+
       <div className="flex items-center gap-2 px-5 pb-3">
         <Input
           value={query}
@@ -195,6 +216,19 @@ export function GovDashboardClient({
 }
 
 function SelectedSummary({ incident, onClose }: { incident: MapIncident; onClose: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [opened, setOpened] = useState<{ id: string; referenceCode: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function openAsCase() {
+    setBusy(true);
+    setError(null);
+    const res = await postJson("/api/gov/cases", { incidentId: incident.id });
+    setBusy(false);
+    if (!res.ok) return setError(res.error ?? "Could not open this as a case.");
+    setOpened(res.case);
+  }
+
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex items-center justify-between">
@@ -208,6 +242,19 @@ function SelectedSummary({ incident, onClose }: { incident: MapIncident; onClose
       <p className="text-xs font-medium text-text-primary/55">
         {incident.type} · {new Date(incident.createdAt).toLocaleDateString("en-NG")} · {incident.status.replace(/_/g, " ")}
       </p>
+
+      {error && <p className="text-xs font-semibold text-risk-critical">{error}</p>}
+
+      {opened ? (
+        <Link href={`/gov/cases/${opened.id}`} className="text-xs font-semibold text-brand">
+          Case {opened.referenceCode} ready — open it →
+        </Link>
+      ) : (
+        <Button variant="secondary" fullWidth disabled={busy} onClick={openAsCase}>
+          {busy ? "Opening…" : "Open as case"}
+        </Button>
+      )}
+
       <button onClick={onClose} className="self-start text-xs font-semibold text-brand">
         Close summary
       </button>
