@@ -16,7 +16,7 @@ export const CH6_FRAMES =
   s(7) + s(13) + s(13) + s(12) + s(12) + s(10) +
   s(8) + s(8) + s(8) + s(7) +
   s(12) + s(11) +
-  s(11) + s(8) +
+  s(7) + s(8) + s(11) + s(8) + s(8) +
   s(12);
 
 export const Ch6Engineering: React.FC = () => (
@@ -259,7 +259,37 @@ export const Ch6Engineering: React.FC = () => (
       </Stage>
     </Series.Sequence>
 
-    {/* ---------------- device trust ---------------- */}
+    {/* ---------------- account creation + device trust ---------------- */}
+    <Series.Sequence durationInFrames={s(7)}>
+      <Stage>
+        <Screen src={CLIP.createAcct.file} trimBefore={s(1)} />
+        <Caption title="Creating an account" delay={6} width={660}>
+          The role you pick is not a preference — it decides what you can see. Two of the five cannot be
+          self-served at all.
+        </Caption>
+        <Chip />
+      </Stage>
+    </Series.Sequence>
+
+    <Series.Sequence durationInFrames={s(8)}>
+      <Stage>
+        <Screen
+          src={CLIP.createAcct.file}
+          trimBefore={s(13)}
+          zoom={1.35}
+          focus={{ x: 700, y: 280, w: 520, h: 500 }}
+          spotlight={{ x: 766, y: 655, w: 392, h: 54 }}
+          spotlightFrom={s(2.2)}
+          spotlightLabel="Whoever asks first becomes the org's lead"
+        />
+        <Caption title="The tradeoff we accepted here" delay={6} width={620} where="top-left">
+          Bank and Government accounts need an invite code or a reviewed work email. It adds friction to
+          onboarding — and it is the only thing stopping anyone claiming an investigator&rsquo;s view of the map.
+        </Caption>
+        <Chip />
+      </Stage>
+    </Series.Sequence>
+
     <Series.Sequence durationInFrames={s(11)}>
       <Stage>
         <FlowDiagram
@@ -285,9 +315,21 @@ export const Ch6Engineering: React.FC = () => (
 
     <Series.Sequence durationInFrames={s(8)}>
       <Stage>
+        <Screen src={CLIP.authFirst.file} trimBefore={s(8)} />
+        <Caption title="Real footage — first sign-in on a new device" delay={6} width={1000}>
+          One emailed code, then a PIN that is bound to this browser. The code proves the account; the PIN
+          proves the device.
+        </Caption>
+        <Chip />
+      </Stage>
+    </Series.Sequence>
+
+    <Series.Sequence durationInFrames={s(8)}>
+      <Stage>
         <Screen src={CLIP.authReturn.file} trimBefore={s(15)} />
-        <Caption title="Real footage — returning to a trusted device" delay={6} width={1000}>
-          Why it matters here: emailed codes over an unreliable mobile network are where people give up on signing in.
+        <Caption title="Real footage — returning to that device" delay={6} width={1000}>
+          No new code. Emailed codes over an unreliable mobile network are exactly where people give up on
+          signing in.
         </Caption>
         <Chip />
       </Stage>

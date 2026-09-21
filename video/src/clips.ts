@@ -13,6 +13,7 @@ export const CLIP: Record<string, { file: string; sec: number }> = {
   business:    { file: "clips/10-business-zone.webm",          sec: 36.00 },
   owner:       { file: "clips/11-owner-dashboard.webm",        sec: 24.88 },
   offline:     { file: "clips/12-offline-queue-sync.webm",     sec: 35.76 },
+  createAcct:  { file: "clips/13-create-account.webm",         sec: 22.20 },
 };
 
 /** The app renders as a centred column at capture width; spotlights land
