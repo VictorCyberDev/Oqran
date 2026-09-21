@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
+import { submitOrQueue } from "@/lib/offline/queue";
 
 export type EscalationTarget =
   | { kind: "signal"; signalId: string }
@@ -27,6 +28,19 @@ export function EscalateToGovButton({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [raised, setRaised] = useState<{ referenceCode: string } | null>(null);
+  const [queued, setQueued] = useState(false);
+
+  if (queued) {
+    return (
+      <div className="rounded-xl border border-border-subtle bg-bg-surface-sunken p-3.5">
+        <p className="text-sm font-bold text-text-primary">Escalation saved on this device</p>
+        <p className="mt-0.5 text-xs font-medium text-text-primary/55">
+          You&rsquo;re offline. It will be raised with Government automatically once you
+          reconnect, and you&rsquo;ll get the case reference then.
+        </p>
+      </div>
+    );
+  }
 
   if (raised) {
     return (
@@ -68,14 +82,17 @@ export function EscalateToGovButton({
           onClick={async () => {
             setBusy(true);
             setError(null);
-            const res = await fetch("/api/bank/escalate", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...target, note: note || undefined }),
-            }).then((r) => r.json());
+            // Queued rather than lost if the branch drops connectivity —
+            // the clientRequestId stops a reconnect raising it twice.
+            const outcome = await submitOrQueue({
+              url: "/api/bank/escalate",
+              body: { ...target, note: note || undefined },
+              label: `Escalation to Government · ${label}`,
+            });
             setBusy(false);
-            if (!res.ok) return setError(res.error ?? "Could not raise the case.");
-            setRaised(res.case);
+            if (outcome.status === "queued") return setQueued(true);
+            if (outcome.status === "error") return setError(outcome.error);
+            setRaised(outcome.data.case as { referenceCode: string });
           }}
         >
           {busy ? "Raising…" : "Raise case"}

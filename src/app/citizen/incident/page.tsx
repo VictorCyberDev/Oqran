@@ -7,7 +7,7 @@ import { BackHeader } from "@/components/ui/BackHeader";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
 import { IconCircle } from "@/components/ui/IconCircle";
-import { flushIncidentQueue, queueIncident } from "@/lib/offline-queue";
+import { submitOrQueue } from "@/lib/offline/queue";
 
 const CATEGORIES = [
   { id: "fraud", letter: "F", label: "Fraud" },
@@ -24,6 +24,7 @@ export default function IncidentReportPage() {
   const [description, setDescription] = useState("");
   const [coords, setCoords] = useState<GeolocationCoordinates | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ referenceCode?: string; queued?: boolean } | null>(null);
 
   useEffect(() => {
@@ -35,49 +36,38 @@ export default function IncidentReportPage() {
     );
   }, []);
 
-  useEffect(() => {
-    flushIncidentQueue();
-    const onOnline = () => flushIncidentQueue();
-    window.addEventListener("online", onOnline);
-    return () => window.removeEventListener("online", onOnline);
-  }, []);
-
   async function submit() {
     if (!category) return;
     setBusy(true);
+    setError(null);
 
-    const payload = {
-      category,
-      description: description || undefined,
-      latitude: coords?.latitude,
-      longitude: coords?.longitude,
-    };
+    // submitOrQueue sends it now if it can and keeps it on the device if
+    // it can't, with an idempotency key so a later replay can't file the
+    // same report twice.
+    const outcome = await submitOrQueue({
+      url: "/api/citizen/incidents",
+      body: {
+        category,
+        description: description || undefined,
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      },
+      label: `Incident report · ${CATEGORIES.find((c) => c.id === category)?.label ?? category}`,
+    });
 
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      queueIncident(payload);
-      setBusy(false);
+    setBusy(false);
+
+    if (outcome.status === "queued") {
       setResult({ queued: true });
       return;
     }
-
-    try {
-      const res = await fetch("/api/citizen/incidents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      setBusy(false);
-      if (json.ok) setResult({ referenceCode: json.referenceCode });
-      else {
-        queueIncident(payload);
-        setResult({ queued: true });
-      }
-    } catch {
-      queueIncident(payload);
-      setBusy(false);
-      setResult({ queued: true });
+    if (outcome.status === "error") {
+      // A rejection the server will give again on every retry — showing it
+      // is more honest than queueing a report that can never land.
+      setError(outcome.error);
+      return;
     }
+    setResult({ referenceCode: String(outcome.data.referenceCode ?? "") });
   }
 
   if (result) {
@@ -167,8 +157,10 @@ export default function IncidentReportPage() {
         placeholder="Add a few details (optional)"
       />
 
+      {error && <p className="text-xs font-semibold text-risk-critical">{error}</p>}
+
       <Button fullWidth disabled={!category || busy} onClick={submit}>
-        Submit Report
+        {busy ? "Submitting…" : "Submit Report"}
       </Button>
     </AppShell>
   );

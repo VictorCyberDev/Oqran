@@ -7,11 +7,13 @@ import { appendLedgerEntry } from "@/lib/ledger";
 import { logActivity } from "@/lib/activity";
 import { jsonError } from "@/lib/http";
 import { withErrorHandling } from "@/lib/api-handler";
+import { clientRequestIdSchema } from "@/lib/offline/idempotency";
 
 const bodySchema = z
   .object({
     status: z.enum(["OPEN", "UNDER_INVESTIGATION", "RESOLVED"]).optional(),
     note: z.string().min(1).max(2000).optional(),
+    clientRequestId: clientRequestIdSchema,
   })
   .refine((b) => b.status || b.note, { message: "Provide a status change or a note" });
 
@@ -29,9 +31,21 @@ export const PATCH = withErrorHandling(
     if (!existing) return jsonError(404, "Case not found");
 
     if (body.note) {
-      await db.caseNote.create({
-        data: { caseId: id, authorId: session.userId, body: body.note.trim() },
-      });
+      // A replayed note is skipped rather than appended twice; the status
+      // change below is naturally idempotent (setting the same value).
+      const alreadyAdded = body.clientRequestId
+        ? await db.caseNote.findUnique({ where: { clientRequestId: body.clientRequestId } })
+        : null;
+      if (!alreadyAdded) {
+        await db.caseNote.create({
+          data: {
+            caseId: id,
+            authorId: session.userId,
+            body: body.note.trim(),
+            clientRequestId: body.clientRequestId,
+          },
+        });
+      }
     }
 
     const updated = body.status

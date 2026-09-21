@@ -54,7 +54,8 @@ Because it's a sequence of independent `await`s and not one transaction, a failu
 
 - `npm run dev` / `build` / `start` — `build` applies pending migrations (`prisma migrate deploy`) before compiling
 - `npm run lint`
-- `npm test` — Vitest, currently covers the ledger hash-chain and Haversine risk-scoring utilities
+- `npm test` — Vitest; covers the ledger hash-chain, Haversine risk scoring,
+  org permissions, incident summarising and the offline replay policy
 - `npm run db:migrate` — create and apply a new migration locally (`prisma migrate dev`)
 - `npm run db:studio` / `db:seed`
 
@@ -63,7 +64,25 @@ Because it's a sequence of independent `await`s and not one transaction, a failu
 - `src/app` — routes, grouped by role (`citizen/`, `bank/`, `gov/`, `business/`,
   `developer/`, `admin/`, shared `account/`) plus `api/` route handlers
 - `src/lib` — auth (session/OTP/device-trust), the ledger hash-chain,
-  rate limiting, geo/risk scoring, notification providers
+  rate limiting, geo/risk scoring, notification providers, the offline
+  write queue (`offline/`)
 - `src/components/ui` — the token-driven component kit (Button, Card, Badge,
   Input, SegmentedControl, Modal, Sheet, Table, MapOverlayPanel)
 - `prisma/schema.prisma` — data model; `prisma/seed.ts` — demo data
+- `public/sw.js` + `public/offline.html` — the offline shell
+
+## Offline behaviour
+
+Writes made without a connection are queued on the device and replayed on
+reconnect under an idempotency key, so a reconnect can never duplicate a
+report, an escalation or a case note. Live lookups and anything
+security-sensitive deliberately fail instead of being queued.
+
+The service worker registers in production builds only — under `next dev`
+a cache-first worker would serve stale chunks. To exercise it locally:
+
+```bash
+npm run build && npm start   # then toggle Offline in DevTools
+```
+
+See [docs/OFFLINE.md](docs/OFFLINE.md) for what is and isn't covered, and why.

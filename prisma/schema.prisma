@@ -257,6 +257,10 @@ model Incident {
   reporter      User?          @relation("ReportedIncidents", fields: [reporterId], references: [id])
   status        IncidentStatus @default(SUBMITTED)
   referenceCode String         @unique
+  /// Client-generated id for a write that may have been queued offline and
+  /// replayed. Nullable so existing rows are untouched — MySQL/TiDB allow
+  /// many NULLs in a unique index — and unique so a replay can't duplicate.
+  clientRequestId String?      @unique
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -437,6 +441,8 @@ model Case {
   fraudSignal   FraudSignal? @relation(fields: [fraudSignalId], references: [id])
   raisedById    String?
   raisedBy      User?        @relation("RaisedCases", fields: [raisedById], references: [id])
+  /// See Incident.clientRequestId — dedupes a replayed offline escalation.
+  clientRequestId String?    @unique
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -457,6 +463,8 @@ model CaseNote {
   authorId  String?
   author    User?    @relation("CaseNoteAuthor", fields: [authorId], references: [id])
   body      String   @db.Text
+  /// See Incident.clientRequestId — dedupes a replayed offline note.
+  clientRequestId String? @unique
   createdAt DateTime @default(now())
 
   @@index([caseId, createdAt])

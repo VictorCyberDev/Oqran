@@ -8,6 +8,7 @@ import { logActivity } from "@/lib/activity";
 import { jsonError } from "@/lib/http";
 import { withErrorHandling } from "@/lib/api-handler";
 import { simulateNinIdentity } from "@/lib/simulation";
+import { clientRequestIdSchema } from "@/lib/offline/idempotency";
 import type { RiskSeverity } from "@/generated/prisma/enums";
 
 /**
@@ -17,12 +18,13 @@ import type { RiskSeverity } from "@/generated/prisma/enums";
  * notification that disappears.
  */
 const bodySchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("signal"), signalId: z.string().min(1), note: z.string().max(2000).optional() }),
-  z.object({ kind: z.literal("address"), addressId: z.string().min(1), note: z.string().max(2000).optional() }),
+  z.object({ kind: z.literal("signal"), signalId: z.string().min(1), note: z.string().max(2000).optional(), clientRequestId: clientRequestIdSchema }),
+  z.object({ kind: z.literal("address"), addressId: z.string().min(1), note: z.string().max(2000).optional(), clientRequestId: clientRequestIdSchema }),
   z.object({
     kind: z.literal("nin"),
     nin: z.string().regex(/^\d{11}$/, "NIN must be 11 digits"),
     note: z.string().max(2000).optional(),
+    clientRequestId: clientRequestIdSchema,
   }),
 ]);
 
@@ -37,6 +39,17 @@ export const POST = withErrorHandling(async (req) => {
   await enforceRateLimit(`bank:escalate:user:${session.userId}`, 30, 60 * 60 * 1000);
 
   const body = bodySchema.parse(await req.json());
+
+  if (body.clientRequestId) {
+    const existing = await db.case.findUnique({ where: { clientRequestId: body.clientRequestId } });
+    if (existing) {
+      return NextResponse.json({
+        ok: true,
+        duplicate: true,
+        case: { id: existing.id, referenceCode: existing.referenceCode, title: existing.title },
+      });
+    }
+  }
 
   const viewer = await db.user.findUnique({
     where: { id: session.userId },
@@ -92,6 +105,7 @@ export const POST = withErrorHandling(async (req) => {
       addressId,
       fraudSignalId,
       raisedById: session.userId,
+      clientRequestId: body.clientRequestId,
     },
   });
 

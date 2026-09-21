@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
 import { THEME_COOKIE, isThemePreference } from "@/lib/theme";
+import { ConnectionBanner } from "@/components/offline/ConnectionBanner";
+import { ServiceWorkerRegistrar } from "@/components/offline/ServiceWorkerRegistrar";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -24,7 +26,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 
   return (
     <html lang="en" data-theme={dataTheme} className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <ServiceWorkerRegistrar />
+        <ConnectionBanner />
+        {children}
+      </body>
     </html>
   );
 }

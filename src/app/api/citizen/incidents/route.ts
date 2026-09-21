@@ -9,6 +9,7 @@ import { haversineDistanceKm } from "@/lib/geo/risk-score";
 import { minutesFromNow } from "@/lib/dates";
 import { clientIp, userAgent, jsonError } from "@/lib/http";
 import { withErrorHandling } from "@/lib/api-handler";
+import { clientRequestIdSchema } from "@/lib/offline/idempotency";
 import type { RiskSeverity } from "@/generated/prisma/enums";
 
 const CATEGORY_SEVERITY: Record<string, RiskSeverity> = {
@@ -34,6 +35,7 @@ const bodySchema = z.object({
   description: z.string().max(1000).optional(),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
+  clientRequestId: clientRequestIdSchema,
 });
 
 function referenceCode() {
@@ -49,6 +51,17 @@ export const POST = withErrorHandling(async (req) => {
   await enforceRateLimit(`incidents:create:user:${session.userId}`, 5, 60 * 60 * 1000);
 
   const body = bodySchema.parse(await req.json());
+
+  // A replay of a write that already landed returns the original result
+  // rather than filing the same report twice.
+  if (body.clientRequestId) {
+    const existing = await db.incident.findUnique({
+      where: { clientRequestId: body.clientRequestId },
+    });
+    if (existing) {
+      return NextResponse.json({ ok: true, referenceCode: existing.referenceCode, duplicate: true });
+    }
+  }
 
   let addressId: string | undefined;
   if (body.latitude !== undefined && body.longitude !== undefined) {
@@ -77,6 +90,7 @@ export const POST = withErrorHandling(async (req) => {
       longitude: body.longitude,
       reporterId: session.userId,
       referenceCode: referenceCode(),
+      clientRequestId: body.clientRequestId,
     },
   });
 

@@ -8,9 +8,10 @@ import { logActivity } from "@/lib/activity";
 import { jsonError } from "@/lib/http";
 import { withErrorHandling } from "@/lib/api-handler";
 import { DANGER_FLAG_TYPE } from "@/lib/geo/severity-colors";
+import { clientRequestIdSchema } from "@/lib/offline/idempotency";
 
 /** Opens an existing incident as a case an investigator can work. */
-const bodySchema = z.object({ incidentId: z.string().min(1) });
+const bodySchema = z.object({ incidentId: z.string().min(1), clientRequestId: clientRequestIdSchema });
 
 function referenceCode() {
   return `OQ-CASE-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -22,7 +23,18 @@ export const POST = withErrorHandling(async (req) => {
 
   await enforceRateLimit(`gov:cases:create:user:${session.userId}`, 40, 60 * 60 * 1000);
 
-  const { incidentId } = bodySchema.parse(await req.json());
+  const { incidentId, clientRequestId } = bodySchema.parse(await req.json());
+
+  if (clientRequestId) {
+    const replayed = await db.case.findUnique({ where: { clientRequestId } });
+    if (replayed) {
+      return NextResponse.json({
+        ok: true,
+        duplicate: true,
+        case: { id: replayed.id, referenceCode: replayed.referenceCode },
+      });
+    }
+  }
 
   const incident = await db.incident.findUnique({
     where: { id: incidentId },
@@ -55,6 +67,7 @@ export const POST = withErrorHandling(async (req) => {
       addressId: incident.addressId ?? undefined,
       incidentId: incident.id,
       raisedById: session.userId,
+      clientRequestId,
     },
   });
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
 import { cn } from "@/lib/cn";
+import { submitOrQueue } from "@/lib/offline/queue";
 import { CASE_STATUSES, CASE_STATUS_LABEL } from "@/lib/cases";
 import type { CaseStatus } from "@/generated/prisma/enums";
 
@@ -23,6 +24,7 @@ export function CaseWorkPanel({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [queued, setQueued] = useState(false);
 
   const statusChanged = status !== currentStatus;
   const canSubmit = (statusChanged || note.trim().length > 0) && !busy;
@@ -30,16 +32,25 @@ export function CaseWorkPanel({
   async function submit() {
     setBusy(true);
     setError(null);
-    const res = await fetch(`/api/gov/cases/${caseId}`, {
+    setQueued(false);
+    // Field investigators lose signal; the note stays on the device and
+    // replays under one idempotency key so it can't be appended twice.
+    const outcome = await submitOrQueue({
+      url: `/api/gov/cases/${caseId}`,
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      body: {
         status: statusChanged ? status : undefined,
         note: note.trim() || undefined,
-      }),
-    }).then((r) => r.json());
+      },
+      label: statusChanged ? "Case status change" : "Case note",
+    });
     setBusy(false);
-    if (!res.ok) return setError(res.error ?? "Could not update this case.");
+    if (outcome.status === "error") return setError(outcome.error);
+    if (outcome.status === "queued") {
+      setQueued(true);
+      setNote("");
+      return;
+    }
     setNote("");
     router.refresh();
   }
@@ -82,6 +93,11 @@ export function CaseWorkPanel({
       </div>
 
       {error && <p className="text-xs font-semibold text-risk-critical">{error}</p>}
+      {queued && (
+        <p className="text-xs font-semibold text-risk-guarded">
+          Saved on this device — it will be recorded on the case once you&rsquo;re back online.
+        </p>
+      )}
 
       <Button fullWidth disabled={!canSubmit} onClick={submit}>
         {busy

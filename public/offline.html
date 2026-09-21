@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#8c1b2e" />
+    <title>Offline · OQRAN</title>
+    <!--
+      Deliberately a plain static file rather than a Next.js route. This is
+      the page shown when everything else has failed, so it must not depend
+      on a build manifest, a JavaScript chunk or a server render — any of
+      which can go stale in the cache after a deploy. The design tokens are
+      duplicated from globals.css for the same reason.
+    -->
+    <style>
+      :root {
+        color-scheme: light;
+        --brand: #8c1b2e;
+        --bg-canvas: #f7f5f1;
+        --bg-surface: #ffffff;
+        --text-primary: #1c1b1a;
+        --border-subtle: rgba(28, 27, 26, 0.09);
+        --risk-guarded: #c98a2b;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --brand: #c6455c;
+          --bg-canvas: #14151a;
+          --bg-surface: #1d1f26;
+          --text-primary: #ededee;
+          --border-subtle: rgba(255, 255, 255, 0.08);
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        padding: 48px 20px;
+        text-align: center;
+        background: var(--bg-canvas);
+        color: var(--text-primary);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .mark {
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        color: var(--brand);
+      }
+      .badge {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 62px;
+        height: 62px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--risk-guarded) 14%, transparent);
+        color: var(--risk-guarded);
+      }
+      h1 { margin: 6px 0 0; font-size: 26px; font-weight: 700; }
+      p {
+        margin: 0;
+        max-width: 22rem;
+        font-size: 14px;
+        line-height: 1.6;
+        color: color-mix(in srgb, var(--text-primary) 62%, transparent);
+      }
+      ul {
+        margin: 4px 0 0;
+        padding: 14px 18px;
+        list-style: none;
+        max-width: 22rem;
+        text-align: left;
+        border: 1px solid var(--border-subtle);
+        border-radius: 14px;
+        background: var(--bg-surface);
+        font-size: 13px;
+        line-height: 1.7;
+        font-weight: 500;
+      }
+      button {
+        margin-top: 8px;
+        padding: 12px 30px;
+        border: 0;
+        border-radius: 10px;
+        background: var(--brand);
+        color: #fff;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <span class="mark">OQRAN</span>
+    <div class="badge" aria-hidden="true">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+        <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+      </svg>
+    </div>
+    <h1>You&rsquo;re offline</h1>
+    <p>
+      This page hasn&rsquo;t been opened on this device yet, so there&rsquo;s nothing saved to show.
+    </p>
+    <ul>
+      <li>Pages you&rsquo;ve already opened still work.</li>
+      <li>Reports, case notes and escalations you submit are saved on this device.</li>
+      <li>They send automatically the moment you reconnect.</li>
+    </ul>
+    <button type="button" onclick="location.reload()">Try again</button>
+  </body>
+</html>

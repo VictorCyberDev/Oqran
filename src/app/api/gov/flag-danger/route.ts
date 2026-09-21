@@ -8,8 +8,9 @@ import { logActivity } from "@/lib/activity";
 import { jsonError } from "@/lib/http";
 import { withErrorHandling } from "@/lib/api-handler";
 import { DANGER_FLAG_TYPE } from "@/lib/geo/severity-colors";
+import { clientRequestIdSchema } from "@/lib/offline/idempotency";
 
-const bodySchema = z.object({ addressId: z.string().min(1) });
+const bodySchema = z.object({ addressId: z.string().min(1), clientRequestId: clientRequestIdSchema });
 
 function referenceCode() {
   return `OQ-${Math.floor(1000 + Math.random() * 9000)}-NG`;
@@ -21,7 +22,30 @@ export const POST = withErrorHandling(async (req) => {
 
   await enforceRateLimit(`gov:flag-danger:user:${session.userId}`, 20, 60 * 60 * 1000);
 
-  const { addressId } = bodySchema.parse(await req.json());
+  const { addressId, clientRequestId } = bodySchema.parse(await req.json());
+
+  if (clientRequestId) {
+    const replayed = await db.incident.findUnique({
+      where: { clientRequestId },
+      include: { address: { select: { label: true } } },
+    });
+    if (replayed) {
+      return NextResponse.json({
+        ok: true,
+        duplicate: true,
+        incident: {
+          id: replayed.id,
+          type: replayed.type,
+          severity: replayed.severity,
+          latitude: replayed.latitude,
+          longitude: replayed.longitude,
+          status: replayed.status,
+          createdAt: replayed.createdAt.toISOString(),
+          address: replayed.address,
+        },
+      });
+    }
+  }
 
   const address = await db.address.findUnique({ where: { id: addressId } });
   if (!address) return jsonError(404, "Address not found");
@@ -37,6 +61,7 @@ export const POST = withErrorHandling(async (req) => {
       reporterId: session.userId,
       status: "UNDER_REVIEW",
       referenceCode: referenceCode(),
+      clientRequestId,
     },
   });
 

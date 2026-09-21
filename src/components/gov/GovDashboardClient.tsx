@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/Sheet";
 import { SimulatedTag, SimulatedLabel } from "@/components/ui/SimulatedTag";
+import { submitOrQueue } from "@/lib/offline/queue";
 
 const TIER_LABEL: Record<string, string> = {
   NIMC_CERTIFIED: "NIMC-Certified",
@@ -37,6 +38,8 @@ interface Investigation {
   ninResult?: { matched: boolean };
   flagged: boolean;
   flagBusy: boolean;
+  /** Flag raised while offline: held on the device, not yet on the map. */
+  flagQueued?: boolean;
 }
 
 async function postJson(url: string, body: unknown) {
@@ -109,13 +112,24 @@ export function GovDashboardClient({
 
   async function flagDangerous() {
     if (!investigation?.address) return;
+    const label = investigation.address.label;
     setInvestigation((prev) => (prev ? { ...prev, flagBusy: true } : prev));
-    const res = await postJson("/api/gov/flag-danger", { addressId: investigation.address.id });
-    if (!res.ok) {
-      setInvestigation((prev) => (prev ? { ...prev, flagBusy: false, error: res.error } : prev));
+    // An investigator standing in the location is exactly where signal is
+    // worst, so a flag is held on the device rather than refused.
+    const outcome = await submitOrQueue({
+      url: "/api/gov/flag-danger",
+      body: { addressId: investigation.address.id },
+      label: `Danger flag \u00b7 ${label}`,
+    });
+    if (outcome.status === "error") {
+      setInvestigation((prev) => (prev ? { ...prev, flagBusy: false, error: outcome.error } : prev));
       return;
     }
-    setIncidents((prev) => [res.incident, ...prev]);
+    if (outcome.status === "queued") {
+      setInvestigation((prev) => (prev ? { ...prev, flagBusy: false, flagQueued: true } : prev));
+      return;
+    }
+    setIncidents((prev) => [outcome.data.incident as MapIncident, ...prev]);
     setInvestigation((prev) => (prev ? { ...prev, flagBusy: false, flagged: true } : prev));
   }
 
@@ -223,15 +237,21 @@ export function GovDashboardClient({
 function SelectedSummary({ incident, onClose }: { incident: MapIncident; onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [opened, setOpened] = useState<{ id: string; referenceCode: string } | null>(null);
+  const [queued, setQueued] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function openAsCase() {
     setBusy(true);
     setError(null);
-    const res = await postJson("/api/gov/cases", { incidentId: incident.id });
+    const outcome = await submitOrQueue({
+      url: "/api/gov/cases",
+      body: { incidentId: incident.id },
+      label: `Open as case \u00b7 ${incident.address?.label ?? incident.type}`,
+    });
     setBusy(false);
-    if (!res.ok) return setError(res.error ?? "Could not open this as a case.");
-    setOpened(res.case);
+    if (outcome.status === "error") return setError(outcome.error ?? "Could not open this as a case.");
+    if (outcome.status === "queued") return setQueued(true);
+    setOpened(outcome.data.case as { id: string; referenceCode: string });
   }
 
   return (
@@ -250,7 +270,11 @@ function SelectedSummary({ incident, onClose }: { incident: MapIncident; onClose
 
       {error && <p className="text-xs font-semibold text-risk-critical">{error}</p>}
 
-      {opened ? (
+      {queued ? (
+        <p className="text-xs font-semibold text-risk-guarded">
+          Saved on this device — the case will be opened once you’re back online.
+        </p>
+      ) : opened ? (
         <Link href={`/gov/cases/${opened.id}`} className="text-xs font-semibold text-brand">
           Case {opened.referenceCode} ready — open it →
         </Link>
@@ -352,7 +376,12 @@ function InvestigationPanel({
 
           <div className="h-px bg-border-subtle" />
 
-          {investigation.flagged ? (
+          {investigation.flagQueued ? (
+            <p className="text-xs font-bold text-risk-guarded">
+              Flag saved on this device — it will be filed, and appear on the map, once
+              you’re back online.
+            </p>
+          ) : investigation.flagged ? (
             <p className="text-xs font-bold text-risk-critical">Flagged as a danger zone.</p>
           ) : (
             <Button
