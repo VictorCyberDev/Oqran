@@ -14,7 +14,7 @@ const Chip = () => <ChapterChip {...CH} total={8} />;
 
 export const CH6_FRAMES =
   s(7) + s(13) + s(13) + s(12) + s(12) + s(10) +
-  s(8) + s(8) + s(8) + s(7) +
+  s(8) + s(6) + s(6) + s(6) + s(5) +
   s(12) + s(11) +
   s(7) + s(8) + s(11) + s(8) + s(8) +
   s(12);
@@ -179,9 +179,9 @@ export const Ch6Engineering: React.FC = () => (
       </Stage>
     </Series.Sequence>
 
-    <Series.Sequence durationInFrames={s(8)}>
+    <Series.Sequence durationInFrames={s(6)}>
       <Stage>
-        <Screen src={CLIP.offline.file} trimBefore={s(16)} zoom={1.3} focus={col(100, 340)} spotlight={{ x: 400, y: 0, w: 1120, h: 34 }} spotlightFrom={s(1.4)} spotlightLabel="1 change saved on this device" />
+        <Screen src={CLIP.offline.file} trimBefore={s(13.5)} zoom={1.3} focus={col(100, 340)} spotlight={{ x: 400, y: 0, w: 1120, h: 34 }} spotlightFrom={s(1.2)} spotlightLabel="1 change saved on this device" />
         <Caption title="Accepted, not pretended" delay={6} width={1000} where="bottom-right">
           &ldquo;Saved — will submit when back online.&rdquo; It never claims the report was filed.
         </Caption>
@@ -189,9 +189,9 @@ export const Ch6Engineering: React.FC = () => (
       </Stage>
     </Series.Sequence>
 
-    <Series.Sequence durationInFrames={s(8)}>
+    <Series.Sequence durationInFrames={s(6)}>
       <Stage>
-        <Screen src={CLIP.offline.file} trimBefore={s(23)} />
+        <Screen src={CLIP.offline.file} trimBefore={s(19)} />
         <Caption title="A page never opened on this device" delay={6} width={1000}>
           The service worker serves a static fallback holding nobody&rsquo;s data — not a browser error, and not
           somebody else&rsquo;s cached dashboard.
@@ -200,11 +200,29 @@ export const Ch6Engineering: React.FC = () => (
       </Stage>
     </Series.Sequence>
 
-    <Series.Sequence durationInFrames={s(7)}>
+    <Series.Sequence durationInFrames={s(6)}>
       <Stage>
-        <Screen src={CLIP.offline.file} trimBefore={s(27.3)} spotlight={{ x: 400, y: 0, w: 1120, h: 34 }} spotlightFrom={s(0.8)} spotlightLabel="1 saved change sent" />
+        <Screen src={CLIP.offline.file} trimBefore={s(26.5)} spotlight={{ x: 400, y: 0, w: 1120, h: 34 }} spotlightFrom={s(0.8)} spotlightLabel="1 saved change sent" />
         <Caption title="Reconnect — the app drains its own queue" delay={6} width={1000}>
           No button was pressed. The queue belongs to the app, not to whichever screen happens to be open.
+        </Caption>
+        <Chip />
+      </Stage>
+    </Series.Sequence>
+
+    <Series.Sequence durationInFrames={s(5)}>
+      <Stage>
+        <Screen
+          src={CLIP.offline.file}
+          trimBefore={s(28.5)}
+          zoom={1.3}
+          focus={col(600, 380)}
+          spotlight={{ x: 660, y: 772, w: 600, h: 46 }}
+          spotlightFrom={s(1.0)}
+          spotlightLabel="The report filed while offline, now a real row"
+        />
+        <Caption title="And it actually landed" delay={4} width={880} where="top-left">
+          Four reports filed. The one written with no connection is indistinguishable from the rest.
         </Caption>
         <Chip />
       </Stage>
